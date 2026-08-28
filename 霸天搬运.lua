@@ -120,20 +120,20 @@ local WeaponModsBox = Tabs.Weapons:AddLeftGroupbox("武器模组", "wrench")
 local GernadesBox = Tabs.Weapons:AddRightGroupbox("手雷", "bomb")
 
 GernadesBox:AddToggle("Antiflashbang", {
-    Text = "启用防闪光弹",
+    Text = "防闪光弹",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
 })
 
 GernadesBox:AddToggle("Antismoke", {
-    Text = "启用防烟雾",
+    Text = "防烟雾",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
 })
 WeaponModsBox:AddToggle("Firerate", {
-    Text = "启用射速修改",
+    Text = "射速修改",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
@@ -148,14 +148,14 @@ WeaponModsBox:AddSlider("FirerateSlider", {
 })
 
 WeaponModsBox:AddToggle("NoRecoil", {
-    Text = "启用无后座",
+    Text = "无后座",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
 })
 
 WeaponModsBox:AddToggle("NoSpread", {
-    Text = "启用无扩散",
+    Text = "无扩散",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
@@ -163,7 +163,7 @@ WeaponModsBox:AddToggle("NoSpread", {
 local CombatLegitBox = Tabs.Combat:AddLeftGroupbox("常规", "target")
 
 CombatLegitBox:AddToggle("Aimbot", {
-    Text = "启用自瞄",
+    Text = "自瞄",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
@@ -214,18 +214,18 @@ LegitDependencyBox:AddDropdown("AimbotHitPart", {
 })
 
 LegitDependencyBox:AddToggle("AimbotTeamCheck", {
-    Text = "启用队伍检测",
+    Text = "队伍检测",
     Default = true,
 })
 
 LegitDependencyBox:AddToggle("AimbotWallCheck", {
-    Text = "启用墙体检测",
+    Text = "墙体检测",
     Default = true,
 })
 CombatLegitBox:AddDivider()
 
 CombatLegitBox:AddToggle("Triggerbot", {
-    Text = "启用扳机",
+    Text = "自动开枪",
     Default = false,
 })
 
@@ -249,7 +249,7 @@ LegitDependencyBox2:SetupDependencies({
 local HitboxBox = Tabs.Combat:AddLeftGroupbox("命中框扩展", "maximize")
 
 HitboxBox:AddToggle("Hitbox", {
-    Text = "启用命中框扩展",
+    Text = "范围",
     Default = false,
     Disabled = typeof(hookmetamethod) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
@@ -258,7 +258,7 @@ HitboxBox:AddToggle("Hitbox", {
 local HitboxDependencyBox = HitboxBox:AddDependencyBox()
 
 HitboxDependencyBox:AddSlider("HitboxSize", {
-    Text = "命中框大小",
+    Text = "范围大小",
     Default = 7,
     Min = 1,
     Max = 28,
@@ -280,7 +280,7 @@ local CombatBlatantBox = Tabs.Combat:AddRightGroupbox("暴力", "zap")
 local RageBlatantBox = Tabs.Combat:AddRightGroupbox("狂暴", "flame")
 
 CombatBlatantBox:AddToggle("SilentAim", {
-    Text = "启用静默自瞄",
+    Text = "子弹追踪",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
@@ -294,7 +294,7 @@ BlatantDependencyBox:AddToggle("SilentWallbang", {
 })
 
 BlatantDependencyBox:AddToggle("SilentUseFovCircle", {
-    Text = "使用FOV圈",
+    Text = "FOV圈",
     Default = false,
 })
 BlatantDependencyBox:AddSlider("SilentFovCircleRadius", {
@@ -330,7 +330,7 @@ BlatantDependencyBox:AddDropdown("SilentHitPart", {
 })
 
 BlatantDependencyBox:AddToggle("SilentTeamCheck", {
-    Text = "启用队伍检测",
+    Text = "队伍检测",
     Default = true,
 })
 
@@ -338,7 +338,7 @@ BlatantDependencyBox:SetupDependencies({
     {Toggles.SilentAim, true}
 })
 RageBlatantBox:AddToggle("Ragebot", {
-    Text = "启用狂暴自瞄",
+    Text = "穿墙子追  容易被挂DC",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
@@ -378,17 +378,17 @@ RageDependencyBox:AddDropdown("RageHitPart", {
     Multi = false,
 })
 RageDependencyBox:AddToggle("RagebotVisibleCheck", {
-    Text = "启用可见检测",
+    Text = "可见检测",
     Default = true,
 })
 
 RageDependencyBox:AddToggle("RagebotTeamCheck", {
-    Text = "启用队伍检测",
+    Text = "队伍检测",
     Default = true,
 })
 
 RageDependencyBox:AddToggle("RagebotWallCheck", {
-    Text = "启用墙体检测",
+    Text = "墙体检测",
     Default = false,
 })
 
@@ -398,7 +398,7 @@ RageDependencyBox:SetupDependencies({
 local VisualsESPBox = Tabs.Visuals:AddLeftGroupbox("透视", "eye")
 
 VisualsESPBox:AddToggle("ESPEnabled", {
-    Text = "启用透视",
+    Text = "透视",
     Default = false,
 })
 
