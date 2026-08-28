@@ -14,12 +14,12 @@ local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 local Options = Library.Options
 local Toggles = Library.Toggles
 local Window = Library:CreateWindow({
-    Title = 'Radon | Bloxstrike',
+    Title = '红星中心付费',
     Center = true,
     AutoShow = true,
     TabPadding = 8,
     MenuFadeTime = 0.2,
-    Footer = "由 L10 制作"
+    Footer = "由 霸天 制作"
 })
 
 local Tabs = {
@@ -193,7 +193,7 @@ LegitDependencyBox:AddDropdown("AimbotHitPart", {
     Text = "命中部位",
     Values = {  -- 必须保留英文，不能翻译
         "HumanoidRootPart",
-        "Head", 
+        "头", 
         "LeftLowerArm",
         "LowerTorso",
         "RightHand",
@@ -404,7 +404,7 @@ VisualsESPBox:AddToggle("ESPEnabled", {
 
 VisualsESPBox:AddDropdown("ESPBoxType", {
     Text = "方框透视",
-    Values = {"2D方框", "3D方框", "角落方框", "禁用"},   -- 中文值
+    Values = {"2D方框", "3D方框", "四角方框", "禁用"},   -- 中文值
     Default = "2D方框",
 })
 
