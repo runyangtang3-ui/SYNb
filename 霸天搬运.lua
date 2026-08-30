@@ -14,12 +14,12 @@ local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 local Options = Library.Options
 local Toggles = Library.Toggles
 local Window = Library:CreateWindow({
-    Title = '红星中心付费',
+    Title = '🔱红星中心付费',
     Center = true,
     AutoShow = true,
     TabPadding = 8,
     MenuFadeTime = 0.2,
-    Footer = "由 霸天 制作"
+    Footer = "由 ⚜️霸天⚜️ 制作"
 })
 
 local Tabs = {
@@ -338,7 +338,7 @@ BlatantDependencyBox:SetupDependencies({
     {Toggles.SilentAim, true}
 })
 RageBlatantBox:AddToggle("Ragebot", {
-    Text = "穿墙子追  容易被挂DC",
+    Text = "⚜️穿墙子追  容易被挂DC",
     Default = false,
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在您的执行器上不可用。",
