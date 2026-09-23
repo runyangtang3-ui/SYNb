@@ -1,6 +1,9 @@
+-- 重置上一次注入的保护标记，避免 return 提前退出
+if _G then _G.BS_CircleZoneLoaded = nil end
+
 -- =========================================================================
 -- [ MEMESENSE - 完整构建 | 彩虹方块 + 弹道追踪 + 手雷ESP + 武器ESP ]
--- [ BloxStrike 版本 | 作者 Axiom ]
+-- [ BloxStrike 版本 | 作者 Axiom | 修复版 ]
 -- =========================================================================
 
 local MaterialLimits = {
@@ -48,16 +51,18 @@ local MaterialVariantLimits = {
     ["IndoorWall"] = 0.25,
     ["Sandy Brick"] = 0.25
 }
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local SoundService = game:GetService("SoundService")
-local Lighting = game:GetService("Lighting")
 
-local LP = Players.LocalPlayer
+local Players           = game:GetService("Players")
+local Workspace         = game:GetService("Workspace")
+local RunService        = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService  = game:GetService("UserInputService")
+local SoundService      = game:GetService("SoundService")
+local Lighting          = game:GetService("Lighting")
+
+local LP     = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
+
 -- =========================================================================
 -- [ 穿透系统 ]
 -- =========================================================================
@@ -147,6 +152,7 @@ local function GetPenetrationStats(origin, direction, maxPen, ignoreList, target
     end
     return stats
 end
+
 -- =========================================================================
 -- [ 数学 & 连跳辅助 ]
 -- =========================================================================
@@ -163,6 +169,9 @@ local function GetMoveDirection()
 end
 
 local charfolder = Workspace:WaitForChild("Characters", 10)
+if not charfolder then
+    warn("[MEMESENSE] 未找到 Workspace.Characters，部分功能将不可用。")
+end
 
 local function get_player_team(player)
     if not player then return nil end
@@ -186,19 +195,46 @@ local function IsValidTarget(character, teamCheckEnabled)
     end
     return true
 end
+
 -- =========================================================================
 -- [ 库初始化 ]
 -- =========================================================================
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local function safeLoad(url)
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if not ok then
+        warn("[MEMESENSE] 加载失败: " .. url .. " | " .. tostring(res))
+        return nil
+    end
+    return res
+end
+
+local Library = safeLoad(repo .. "Library.lua")
+if not Library then
+    warn("[MEMESENSE] 核心库加载失败，脚本终止。请检查网络或换执行器。")
+    return
+end
+
+local ThemeManager = safeLoad(repo .. "addons/ThemeManager.lua")
+local SaveManager  = safeLoad(repo .. "addons/SaveManager.lua")
 
 Library.Font = Enum.Font.Roboto
 
 local Options = Library.Options
 local Toggles = Library.Toggles
+
+local function OVal(name, default)
+    if Options and Options[name] then return Options[name].Value end
+    return default
+end
+local function TVal(name, default)
+    if Toggles and Toggles[name] then return Toggles[name].Value end
+    return default
+end
 
 local Window = Library:CreateWindow({
     Title = '<font color="#ff0000"><b>MEME</b></font><font color="#ffffff"><b>SENSE</b></font>',
@@ -210,14 +246,15 @@ local Window = Library:CreateWindow({
 })
 
 local Tabs = {
-    Combat = Window:AddTab('战斗', 'swords'),
-    Weapons = Window:AddTab('武器', 'crosshair'),
-    Visuals = Window:AddTab('视觉', 'eye'),
-    World = Window:AddTab('世界', 'globe'),
-    Misc = Window:AddTab('杂项', 'activity'),
+    Combat      = Window:AddTab('战斗', 'swords'),
+    Weapons     = Window:AddTab('武器', 'crosshair'),
+    Visuals     = Window:AddTab('视觉', 'eye'),
+    World       = Window:AddTab('世界', 'globe'),
+    Misc        = Window:AddTab('杂项', 'activity'),
     SkinChanger = Window:AddTab('皮肤切换', 'paintbrush'),
-    Settings = Window:AddTab('设置', 'settings'),
+    Settings    = Window:AddTab('设置', 'settings'),
 }
+
 -- =========================================================================
 -- [ 设置选项卡 ]
 -- =========================================================================
@@ -248,6 +285,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
     end
 end)
+
 -- =========================================================================
 -- [ 杂项选项卡 - 移动 ]
 -- =========================================================================
@@ -266,7 +304,7 @@ RunService.Heartbeat:Connect(function()
         local Humanoid = Character:FindFirstChild("Humanoid")
         if not RootPart or not Humanoid then return end
 
-        if Toggles.AutoBhop and Toggles.AutoBhop.Value then
+        if TVal("AutoBhop", false) then
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
                 local RayParams = RaycastParams.new()
                 RayParams.FilterDescendantsInstances = {Character}
@@ -276,7 +314,7 @@ RunService.Heartbeat:Connect(function()
             end
             local Success, Result = pcall(function() return GetMoveDirection() end)
             if Success and Result.Magnitude > 0 then
-                local currentBhopSpeed = math.clamp(Options.BhopSpeed and Options.BhopSpeed.Value or 18, 5, 30)
+                local currentBhopSpeed = math.clamp(OVal("BhopSpeed", 18), 5, 30)
                 local Direction = Result * currentBhopSpeed
                 local Velocity = RootPart.AssemblyLinearVelocity
                 local NewX = Velocity.X + (Direction.X - Velocity.X) * 0.2
@@ -289,7 +327,7 @@ end)
 
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        if Toggles.NoFallDamage and Toggles.NoFallDamage.Value then
+        if TVal("NoFallDamage", false) then
             local character = LP.Character
             if character then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -349,6 +387,7 @@ WeaponVisualBox:AddToggle("BulletImpacts", {
     Default = Color3.fromRGB(255, 0, 0),
     Title = "弹着点颜色",
 })
+
 -- =========================================================================
 -- [ 手雷ESP - 仅追踪 (无警告框) ]
 -- =========================================================================
@@ -378,6 +417,7 @@ GrenadeVisualBox:AddToggle("SmokeZoneESP", {
     Default = Color3.fromRGB(180, 180, 180),
     Title = "烟雾颜色",
 })
+
 -- =========================================================================
 -- [ 自定义手部位置 ]
 -- =========================================================================
@@ -391,10 +431,10 @@ CustomHandsBox:AddSlider("HandsZ", { Text = "Z轴", Default = 0.075, Min = -2, M
 
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        if not Toggles.CustomHandsEnabled or not Toggles.CustomHandsEnabled.Value then return end
-        local xOffset = Options.HandsX and Options.HandsX.Value or 0.2
-        local yOffset = Options.HandsY and Options.HandsY.Value or -0.155
-        local zOffset = Options.HandsZ and Options.HandsZ.Value or 0.075
+        if not TVal("CustomHandsEnabled", false) then return end
+        local xOffset = OVal("HandsX", 0.2)
+        local yOffset = OVal("HandsY", -0.155)
+        local zOffset = OVal("HandsZ", 0.075)
         for _, child in ipairs(Camera:GetChildren()) do
             if child:IsA("Model") then
                 local statsFolder = child:FindFirstChild("Stats")
@@ -408,6 +448,7 @@ RunService.RenderStepped:Connect(function()
         end
     end)
 end)
+
 -- =========================================================================
 -- [ 武器透视 (Chams) ]
 -- =========================================================================
@@ -435,9 +476,9 @@ local activeNeonHighlights = {}
 
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        local chamsEnabled = Toggles.WeaponChamsEnabled and Toggles.WeaponChamsEnabled.Value
-        local chamsMode = Options.WeaponChamsMode and Options.WeaponChamsMode.Value or "玻璃"
-        local chamsColor = Options.WeaponChamsColor and Options.WeaponChamsColor.Value or Color3.fromRGB(0, 150, 255)
+        local chamsEnabled = TVal("WeaponChamsEnabled", false)
+        local chamsMode    = OVal("WeaponChamsMode", "玻璃")
+        local chamsColor   = OVal("WeaponChamsColor", Color3.fromRGB(0, 150, 255))
 
         local weaponModel = nil
         for _, child in ipairs(Camera:GetChildren()) do
@@ -463,54 +504,55 @@ RunService.RenderStepped:Connect(function()
         for _, part in ipairs(weaponModel:GetDescendants()) do
             if part:IsA("BasePart") and part.Name ~= "Hitbox" and part.Name ~= "HumanoidRootPart" then
                 if part.Name == "ViewmodelLight" or part:FindFirstAncestor("ViewmodelLight") or part:FindFirstAncestor("Viewmodel") then
-                    continue
+                    -- skip
+                else
+                    pcall(function()
+                        if chamsMode == "高亮" then
+                            currentNeonParts[part] = true
+                            local h = part:FindFirstChild("WeaponChamsHighlight")
+                            if not h then
+                                h = Instance.new("Highlight")
+                                h.Name = "WeaponChamsHighlight"
+                                h.Adornee = part
+                                h.Parent = part
+                                h.FillTransparency = 0
+                                h.OutlineTransparency = 1
+                                h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                table.insert(activeNeonHighlights, h)
+                            end
+                            h.FillColor = chamsColor
+                        else
+                            local h = part:FindFirstChild("WeaponChamsHighlight")
+                            if h then h:Destroy() end
+                            if chamsMode ~= "霓虹" then
+                                for _, v in ipairs(part:GetChildren()) do
+                                    if v:IsA("SurfaceAppearance") or v:IsA("Texture") or v:IsA("Decal") then v:Destroy() end
+                                end
+                            end
+                            if chamsMode == "玻璃" then
+                                part.Material = Enum.Material.Glass
+                                part.Color = chamsColor
+                                part.Transparency = OVal("GlassTransparency", 0.4)
+                            elseif chamsMode == "力场" then
+                                part.Material = Enum.Material.ForceField
+                                part.Color = chamsColor
+                                part.Transparency = 0
+                            elseif chamsMode == "金属" then
+                                part.Material = Enum.Material.Metal
+                                part.Color = chamsColor
+                                part.Reflectance = OVal("MetalReflectance", 1.0)
+                                part.Transparency = 0
+                            elseif chamsMode == "霓虹" then
+                                part.Material = Enum.Material.Neon
+                                part.Color = chamsColor
+                                part.Transparency = 0
+                                for _, v in ipairs(part:GetChildren()) do
+                                    if v:IsA("SurfaceAppearance") or v:IsA("Texture") or v:IsA("Decal") then v:Destroy() end
+                                end
+                            end
+                        end
+                    end)
                 end
-                pcall(function()
-                    if chamsMode == "高亮" then
-                        currentNeonParts[part] = true
-                        local h = part:FindFirstChild("WeaponChamsHighlight")
-                        if not h then
-                            h = Instance.new("Highlight")
-                            h.Name = "WeaponChamsHighlight"
-                            h.Adornee = part
-                            h.Parent = part
-                            h.FillTransparency = 0
-                            h.OutlineTransparency = 1
-                            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                            table.insert(activeNeonHighlights, h)
-                        end
-                        h.FillColor = chamsColor
-                    else
-                        local h = part:FindFirstChild("WeaponChamsHighlight")
-                        if h then h:Destroy() end
-                        if chamsMode ~= "霓虹" then
-                            for _, v in ipairs(part:GetChildren()) do
-                                if v:IsA("SurfaceAppearance") or v:IsA("Texture") or v:IsA("Decal") then v:Destroy() end
-                            end
-                        end
-                        if chamsMode == "玻璃" then
-                            part.Material = Enum.Material.Glass
-                            part.Color = chamsColor
-                            part.Transparency = Options.GlassTransparency and Options.GlassTransparency.Value or 0.4
-                        elseif chamsMode == "力场" then
-                            part.Material = Enum.Material.ForceField
-                            part.Color = chamsColor
-                            part.Transparency = 0
-                        elseif chamsMode == "金属" then
-                            part.Material = Enum.Material.Metal
-                            part.Color = chamsColor
-                            part.Reflectance = Options.MetalReflectance and Options.MetalReflectance.Value or 1.0
-                            part.Transparency = 0
-                        elseif chamsMode == "霓虹" then
-                            part.Material = Enum.Material.Neon
-                            part.Color = chamsColor
-                            part.Transparency = 0
-                            for _, v in ipairs(part:GetChildren()) do
-                                if v:IsA("SurfaceAppearance") or v:IsA("Texture") or v:IsA("Decal") then v:Destroy() end
-                            end
-                        end
-                    end
-                end)
             end
         end
 
@@ -525,6 +567,7 @@ RunService.RenderStepped:Connect(function()
         end
     end)
 end)
+
 -- =========================================================================
 -- [ 战斗选项卡 - MEMESENSE 模式 ]
 -- =========================================================================
@@ -612,6 +655,7 @@ MemesenseDepBox:AddLabel("准星颜色"):AddColorPicker("ShowTargetCrosshairColo
 CubeCombatBox:AddToggle("ShowPenetration", { Text = "显示穿透", Default = false })
 
 MemesenseDepBox:SetupDependencies({ {Toggles.MemesenseMainToggle, true} })
+
 -- =========================================================================
 -- [ 穿透可视化器 ]
 -- =========================================================================
@@ -630,7 +674,7 @@ task.spawn(function()
     penParams.CollisionGroup = "Bullet"
 
     RunService.RenderStepped:Connect(function()
-        local show = Toggles.ShowPenetration and Toggles.ShowPenetration.Value
+        local show = TVal("ShowPenetration", false)
         local cam = Workspace.CurrentCamera
         if show and cam then
             PenText.Position = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2 - 70)
@@ -694,10 +738,10 @@ HitSoundBox:AddInput("CustomHitSoundID", {
 
 local function PlayHitSound()
     pcall(function()
-        if not Toggles.HitSoundEnabled.Value then return end
+        if not TVal("HitSoundEnabled", false) then return end
         local soundId = ""
-        if Toggles.CustomHitSoundToggle and Toggles.CustomHitSoundToggle.Value then
-            local customInput = Options.CustomHitSoundID and Options.CustomHitSoundID.Value
+        if TVal("CustomHitSoundToggle", false) then
+            local customInput = OVal("CustomHitSoundID", "")
             if customInput and customInput ~= "" then
                 if not customInput:find("rbxassetid://") then
                     local cleanId = customInput:gsub("%D", "")
@@ -708,11 +752,11 @@ local function PlayHitSound()
             end
         end
         if soundId == "" then
-            soundId = HitSoundPresets[Options.HitSoundPreset.Value] or "rbxassetid://139452805868562"
+            soundId = HitSoundPresets[OVal("HitSoundPreset", "Neverlose")] or "rbxassetid://139452805868562"
         end
         local sound = Instance.new("Sound")
         sound.SoundId = soundId
-        sound.Volume = Options.HitSoundVolume and Options.HitSoundVolume.Value or 1
+        sound.Volume = OVal("HitSoundVolume", 1)
         sound.Parent = SoundService
         sound:Play()
         task.spawn(function()
@@ -721,6 +765,7 @@ local function PlayHitSound()
         end)
     end)
 end
+
 -- =========================================================================
 -- [ 自定义相机 ]
 -- =========================================================================
@@ -740,8 +785,8 @@ CustomCameraBox:AddToggle("ThirdPerson", {
     Callback = function(Value)
         if Value then
             LP.CameraMode = Enum.CameraMode.Classic
-            LP.CameraMaxZoomDistance = Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10
-            LP.CameraMinZoomDistance = Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10
+            LP.CameraMaxZoomDistance = OVal("ThirdPersonDist", 10)
+            LP.CameraMinZoomDistance = OVal("ThirdPersonDist", 10)
         else
             LP.CameraMode = Enum.CameraMode.LockFirstPerson
             LP.CameraMaxZoomDistance = 0.5
@@ -758,12 +803,13 @@ CustomCameraBox:AddSlider("ThirdPersonDist", {
     Rounding = 1,
     Suffix = "单位",
     Callback = function(Value)
-        if Toggles.ThirdPerson and Toggles.ThirdPerson.Value then
+        if TVal("ThirdPerson", false) then
             LP.CameraMaxZoomDistance = Value
             LP.CameraMinZoomDistance = Value
         end
     end
 })
+
 -- =========================================================================
 -- [ 自定义瞄准镜 ]
 -- =========================================================================
@@ -783,6 +829,7 @@ CustomScopeBox:AddToggle("CustomScopeCrosshair", {
 CustomScopeBox:AddSlider("ScopeCrosshairThickness", { Text = "准星粗细", Default = 2, Min = 1, Max = 10, Rounding = 1, Suffix = "像素" })
 CustomScopeBox:AddSlider("ScopeCrosshairLengthLR", { Text = "左右长度", Default = 150, Min = 0, Max = 1000, Rounding = 0, Suffix = "像素" })
 CustomScopeBox:AddSlider("ScopeCrosshairLengthTB", { Text = "上下长度", Default = 100, Min = 0, Max = 1000, Rounding = 0, Suffix = "像素" })
+
 -- =========================================================================
 -- [ 命中标记 ]
 -- =========================================================================
@@ -806,9 +853,9 @@ task.spawn(function()
     local activeHitMarkers = {}
 
     TriggerHitMarkerEvent = function(hitPos)
-        if not Toggles.HitMarkerEnabled or not Toggles.HitMarkerEnabled.Value then return end
-        local dur = Options.HitMarkerDuration and Options.HitMarkerDuration.Value or 2
-        local thick = Options.HitMarkerThickness and Options.HitMarkerThickness.Value or 2
+        if not TVal("HitMarkerEnabled", false) then return end
+        local dur = OVal("HitMarkerDuration", 2)
+        local thick = OVal("HitMarkerThickness", 2)
         local lines = {}
         for i = 1, 4 do
             local line = Drawing.new("Line")
@@ -828,13 +875,13 @@ task.spawn(function()
     RunService.RenderStepped:Connect(function()
         pcall(function()
             local currentTick = tick()
-            local enabled = Toggles.HitMarkerEnabled and Toggles.HitMarkerEnabled.Value
-            local col = Options.HitMarkerColor and Options.HitMarkerColor.Value or Color3.fromRGB(255, 255, 255)
-            if Toggles.HitMarkerRainbow and Toggles.HitMarkerRainbow.Value then
+            local enabled = TVal("HitMarkerEnabled", false)
+            local col = OVal("HitMarkerColor", Color3.fromRGB(255, 255, 255))
+            if TVal("HitMarkerRainbow", false) then
                 col = Color3.fromHSV((currentTick % 5) / 5, 1, 1)
             end
-            local baseSize = Options.HitMarkerSize and Options.HitMarkerSize.Value or 25
-            local spinSpeed = Options.HitMarkerSpinSpeed and Options.HitMarkerSpinSpeed.Value or 720
+            local baseSize = OVal("HitMarkerSize", 25)
+            local spinSpeed = OVal("HitMarkerSpinSpeed", 720)
             local pulseFactor = 1 + 0.35 * math.sin(currentTick * math.pi)
             local currentSize = baseSize * pulseFactor
             local gap = 6 * pulseFactor
@@ -854,7 +901,7 @@ task.spawn(function()
                         for j = 1, 4 do
                             local line = data.lines[j]
                             line.Color = col
-                            line.Thickness = Options.HitMarkerThickness and Options.HitMarkerThickness.Value or 2
+                            line.Thickness = OVal("HitMarkerThickness", 2)
                             local totalAngle = currentAngle + math.rad(baseAngles[j])
                             local cosA = math.cos(totalAngle)
                             local sinA = math.sin(totalAngle)
@@ -911,17 +958,17 @@ task.spawn(function()
                 local s, scope = pcall(function() return playerGui.MainGui.Gameplay.Middle.SniperScope end)
                 if s and scope and scope.Visible then isScoped = true end
             end
-            local enabled = Toggles.CustomScopeCrosshair and Toggles.CustomScopeCrosshair.Value and isScoped
+            local enabled = TVal("CustomScopeCrosshair", false) and isScoped
             container.Visible = enabled
             if enabled then
-                local col = Options.ScopeCrosshairColor and Options.ScopeCrosshairColor.Value or Color3.fromRGB(255, 255, 255)
+                local col = OVal("ScopeCrosshairColor", Color3.fromRGB(255, 255, 255))
                 leftLine.BackgroundColor3 = col
                 rightLine.BackgroundColor3 = col
                 topLine.BackgroundColor3 = col
                 bottomLine.BackgroundColor3 = col
-                local t = Options.ScopeCrosshairThickness and Options.ScopeCrosshairThickness.Value or 2
-                local lenLR = Options.ScopeCrosshairLengthLR and Options.ScopeCrosshairLengthLR.Value or 150
-                local lenTB = Options.ScopeCrosshairLengthTB and Options.ScopeCrosshairLengthTB.Value or 100
+                local t = OVal("ScopeCrosshairThickness", 2)
+                local lenLR = OVal("ScopeCrosshairLengthLR", 150)
+                local lenTB = OVal("ScopeCrosshairLengthTB", 100)
                 leftLine.Size = UDim2.new(0, lenLR, 0, t)
                 leftLine.Position = UDim2.new(0, 0, 0, 0)
                 rightLine.Size = UDim2.new(0, lenLR, 0, t)
@@ -934,6 +981,7 @@ task.spawn(function()
         end)
     end)
 end)
+
 -- =========================================================================
 -- [ 移除瞄准镜 ]
 -- =========================================================================
@@ -950,7 +998,7 @@ task.spawn(function()
             end
         end
         local scopeFrame = CachedSniperScope
-        if not Toggles.RemoveScope or not Toggles.RemoveScope.Value then
+        if not TVal("RemoveScope", false) then
             if scopeFrame then
                 if scopeFrame.Size ~= UDim2.new(1, 0, 1, 0) then scopeFrame.Size = UDim2.new(1, 0, 1, 0) end
             end
@@ -965,6 +1013,7 @@ task.spawn(function()
         end
     end)
 end)
+
 -- =========================================================================
 -- [ 自定义瞄准镜视场角 ]
 -- =========================================================================
@@ -972,7 +1021,7 @@ end)
 task.spawn(function()
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            if Toggles.CustomScopeFov and Toggles.CustomScopeFov.Value then
+            if TVal("CustomScopeFov", false) then
                 local cam = Workspace.CurrentCamera
                 if cam then
                     local playerGui = LP:FindFirstChild("PlayerGui")
@@ -981,8 +1030,8 @@ task.spawn(function()
                             playerGui.MainGui:FindFirstChild("Gameplay") and
                             playerGui.MainGui.Gameplay:FindFirstChild("Middle") and
                             playerGui.MainGui.Gameplay.Middle:FindFirstChild("SniperScope")
-                        if scope and scope.Visible and Options.ScopeFovValue then
-                            cam.FieldOfView = Options.ScopeFovValue.Value
+                        if scope and scope.Visible then
+                            cam.FieldOfView = OVal("ScopeFovValue", 70)
                         end
                     end
                 end
@@ -990,34 +1039,42 @@ task.spawn(function()
         end)
     end)
 end)
+
 -- =========================================================================
 -- [ 第三人称元表钩子 ]
 -- =========================================================================
 
 task.spawn(function()
-    if getrawmetatable and setreadonly then
+    if not (getrawmetatable and setreadonly and newcclosure) then
+        warn("[MEMESENSE] 执行器不支持 getrawmetatable，跳过第三人称钩子。")
+        return
+    end
+    local ok, err = pcall(function()
         local mt = getrawmetatable(game)
         local oldNewIndex = mt.__newindex
         setreadonly(mt, false)
         mt.__newindex = newcclosure(function(self, key, value)
-            if self == LP and Toggles.ThirdPerson and Toggles.ThirdPerson.Value then
+            if self == LP and TVal("ThirdPerson", false) then
                 if key == "CameraMode" then
                     return oldNewIndex(self, key, Enum.CameraMode.Classic)
                 elseif key == "CameraMaxZoomDistance" then
-                    return oldNewIndex(self, key, Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10)
+                    return oldNewIndex(self, key, OVal("ThirdPersonDist", 10))
                 elseif key == "CameraMinZoomDistance" then
-                    return oldNewIndex(self, key, Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10)
+                    return oldNewIndex(self, key, OVal("ThirdPersonDist", 10))
                 end
             end
             return oldNewIndex(self, key, value)
         end)
         setreadonly(mt, true)
+    end)
+    if not ok then
+        warn("[MEMESENSE] 元表钩子安装失败: " .. tostring(err))
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        if Toggles.CustomFovToggle and Toggles.CustomFovToggle.Value then
+        if TVal("CustomFovToggle", false) then
             local keypicker = Options.CustomFovKey
             local active = true
             if keypicker and keypicker.Value ~= "Always" and keypicker.Value ~= "One" then
@@ -1025,17 +1082,18 @@ RunService.RenderStepped:Connect(function()
             end
             if active then
                 local cam = Workspace.CurrentCamera
-                if cam then cam.FieldOfView = Options.FovAmount.Value or 90 end
+                if cam then cam.FieldOfView = OVal("FovAmount", 90) end
             end
         end
-        if Toggles.ThirdPerson and Toggles.ThirdPerson.Value then
-            local clampedDist = math.clamp(Options.ThirdPersonDist and Options.ThirdPersonDist.Value or 10, 5, 50)
+        if TVal("ThirdPerson", false) then
+            local clampedDist = math.clamp(OVal("ThirdPersonDist", 10), 5, 50)
             LP.CameraMode = Enum.CameraMode.Classic
             LP.CameraMaxZoomDistance = clampedDist
             LP.CameraMinZoomDistance = clampedDist
         end
     end)
 end)
+
 -- =========================================================================
 -- [ 天空盒系统 ]
 -- =========================================================================
@@ -1159,6 +1217,7 @@ local function UpdateSkybox(name)
     sky.MoonTextureId = ""
     sky.StarCount = 0
 end
+
 -- =========================================================================
 -- [ 天气系统 ]
 -- =========================================================================
@@ -1247,19 +1306,19 @@ local DefaultLighting = {
 }
 
 local function UpdateLighting()
-    if Toggles.EnableTime and Toggles.EnableTime.Value then
-        Lighting.ClockTime = Options.WorldClockTime.Value
+    if TVal("EnableTime", false) then
+        Lighting.ClockTime = OVal("WorldClockTime", 12)
     else
         Lighting.ClockTime = DefaultLighting.ClockTime
     end
-    if Toggles.EnableBrightness and Toggles.EnableBrightness.Value then
-        Lighting.Brightness = Options.WorldBrightness.Value
+    if TVal("EnableBrightness", false) then
+        Lighting.Brightness = OVal("WorldBrightness", 2)
     else
         Lighting.Brightness = DefaultLighting.Brightness
     end
-    if Toggles.EnableColors and Toggles.EnableColors.Value then
-        Lighting.Ambient = Options.WorldAmbient.Value
-        Lighting.OutdoorAmbient = Options.WorldOutdoorAmbient.Value
+    if TVal("EnableColors", false) then
+        Lighting.Ambient = OVal("WorldAmbient", Color3.fromRGB(127,127,127))
+        Lighting.OutdoorAmbient = OVal("WorldOutdoorAmbient", Color3.fromRGB(127,127,127))
     else
         Lighting.Ambient = DefaultLighting.Ambient
         Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient
@@ -1271,8 +1330,8 @@ WorldBox:AddToggle("EnableSkybox", {
     Default = false,
     Callback = function(v)
         if v then
-            if Toggles.Atmosphere and Toggles.Atmosphere.Value then Toggles.Atmosphere:SetValue(false) end
-            UpdateSkybox(Options.SkyboxPreset.Value)
+            if TVal("Atmosphere", false) then Toggles.Atmosphere:SetValue(false) end
+            UpdateSkybox(OVal("SkyboxPreset", "夜晚"))
         end
     end
 })
@@ -1281,7 +1340,7 @@ WorldBox:AddDropdown("SkyboxPreset", {
     Text = "天空盒预设",
     Values = skyNames,
     Default = "夜晚",
-    Callback = function(v) if Toggles.EnableSkybox.Value then UpdateSkybox(v) end end
+    Callback = function(v) if TVal("EnableSkybox", false) then UpdateSkybox(v) end end
 })
 
 WorldBox:AddDropdown("WeatherType", {
@@ -1312,8 +1371,8 @@ WorldBox:AddLabel("室外光颜色"):AddColorPicker("WorldOutdoorAmbient", {
 task.spawn(function()
     while task.wait(1) do
         pcall(function()
-            if Toggles.EnableSkybox and Toggles.EnableSkybox.Value then
-                UpdateSkybox(Options.SkyboxPreset.Value)
+            if TVal("EnableSkybox", false) then
+                UpdateSkybox(OVal("SkyboxPreset", "夜晚"))
             end
             UpdateLighting()
         end)
@@ -1325,6 +1384,7 @@ RunService.RenderStepped:Connect(function()
     local CamCF = Workspace.CurrentCamera.CFrame
     if WeatherPart then WeatherPart.CFrame = CamCF * CFrame.new(0, 30, 0) end
 end)
+
 -- =========================================================================
 -- [ 皮肤切换系统 ]
 -- =========================================================================
@@ -1673,55 +1733,7 @@ task.spawn(function()
         task.wait(0.5)
     end
 end)
-task.spawn(function()
-    local lastShot = 0
-    while true do
-        task.wait(0.008)
-        pcall(function()
-            if not (Toggles.Ragebot and Toggles.Ragebot.Value) then return end
 
-            -- 自动获取武器如果为空或已更换
-            if not Weapon or not pcall(function() return Weapon.IsEquipped end) then
-                if getCurrentEquipped then
-                    Weapon = getEquipped()
-                end
-            end
-
-            if not Weapon then return end
-            if not Weapon.IsEquipped then return end
-
-            local rounds = pcall(function() return Weapon.Rounds end) and Weapon.Rounds or 0
-            if rounds <= 0 then return end
-
-            if not RageTarget or not RageTarget.Parent then return end
-
-            -- 检查目标是否存活
-            local char = RageTarget:FindFirstAncestorOfClass("Model")
-            if not char then return end
-            if char:GetAttribute("Dead") or char:GetAttribute("Invincible") then return end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health <= 0 then return end
-
-            -- 如果启用了可见性检查
-            if Toggles.RagebotVisibleCheck and Toggles.RagebotVisibleCheck.Value then
-                local _, onScreen = Camera:WorldToViewportPoint(RageTarget.Position)
-                if not onScreen then return end
-            end
-
-            -- 如果启用了穿墙检查
-            if Toggles.RagebotWallCheck and Toggles.RagebotWallCheck.Value then
-                if not isVisible(RageTarget) then return end
-            end
-
-            local delay = Options.RageDelay and Options.RageDelay.Value or 0.02
-            local now = tick()
-            if now - lastShot < delay then return end
-            lastShot = now
-
-            Weapon:shoot()
-        end)
-    end
-end)
 -- =========================================================================
 -- [ 武器选项卡 ]
 -- =========================================================================
@@ -1765,6 +1777,7 @@ WeaponModsBox:AddToggle("NoSpread", {
     Disabled = typeof(hookfunction) ~= "function",
     DisabledTooltip = "此功能在你的执行器上不可用。",
 })
+
 -- =========================================================================
 -- [ 战斗选项卡 - 暴力 + 狂暴 ]
 -- =========================================================================
@@ -1825,7 +1838,7 @@ RageDependencyBox:AddToggle("RagebotVisibleCheck", { Text = "启用可见性检�
 RageDependencyBox:AddToggle("RagebotTeamCheck", { Text = "启用队伍检查", Default = true })
 RageDependencyBox:AddToggle("RagebotWallCheck", { Text = "启用穿墙检查", Default = false })
 RageDependencyBox:SetupDependencies({ {Toggles.Ragebot, true} })
--- ── 优先目标 ───────────────────────────────────────────────────────
+
 RageDependencyBox:AddDivider()
 
 local priorityTargetName = nil
@@ -1836,7 +1849,6 @@ local function refreshPriorityList()
         if p ~= LP then
             local pt = get_player_team(p)
             local lt = get_player_team(LP)
-            -- 如果队伍未确定 — 仍然显示玩家
             if pt == nil or lt == nil or pt ~= lt then
                 table.insert(names, p.Name)
             end
@@ -1859,16 +1871,10 @@ RageDependencyBox:AddButton("刷新列表", function()
     Options.RagePriorityTarget:SetValue("[ 自动 ]")
     priorityTargetName = nil
 end)
--- =========================================================================
--- [ 视觉选项卡 - ESP系统 ] v5.7 (属性血量 + 血条渐变)
--- =========================================================================
 
-local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Camera = Workspace.CurrentCamera
-local LP = Players.LocalPlayer
+-- =========================================================================
+-- [ 视觉选项卡 - ESP系统设置面板 ]
+-- =========================================================================
 
 local VisualsESPBox = Tabs.Visuals:AddLeftGroupbox("ESP", "eye")
 
@@ -1885,8 +1891,8 @@ VisualsESPBox:AddLabel("方框颜色 A"):AddColorPicker("ESPBoxColorA", { Defaul
 VisualsESPBox:AddLabel("方框颜色 B"):AddColorPicker("ESPBoxColorB", { Default = Color3.fromRGB(0,200,255),   Title = "方框颜色 B" })
 
 VisualsESPBox:AddToggle("ESPBoxFillGradient", { Text = "填充渐变", Default = false })
-VisualsESPBox:AddLabel("填充颜色 "):AddColorPicker("ESPFillColorA", { Default = Color3.fromRGB(255,50,50),  Title = "填充颜色 A" })
-VisualsESPBox:AddLabel("填充颜色 "):AddColorPicker("ESPFillColorB", { Default = Color3.fromRGB(50,50,255),  Title = "填充颜色 B" })
+VisualsESPBox:AddLabel("填充颜色 A"):AddColorPicker("ESPFillColorA", { Default = Color3.fromRGB(255,50,50),  Title = "填充颜色 A" })
+VisualsESPBox:AddLabel("填充颜色 B"):AddColorPicker("ESPFillColorB", { Default = Color3.fromRGB(50,50,255),  Title = "填充颜色 B" })
 VisualsESPBox:AddToggle("ESPBoxFillRotation", { Text = "填充旋转", Default = false })
 VisualsESPBox:AddSlider("ESPBoxRotationSpeed", { Text = "旋转速度", Min = 0.1, Max = 10, Default = 2, Rounding = 1 })
 
@@ -1908,14 +1914,14 @@ VisualsESPBox:AddToggle("ESPWeapon", { Text = "显示武器名称", Default = fa
 
 VisualsESPBox:AddToggle("ESPTracer", { Text = "追踪线ESP", Default = false })
 VisualsESPBox:AddLabel("追踪线颜色"):AddColorPicker("ESPTracerColor",  { Default = Color3.new(1,1,1)             })
-VisualsESPBox:AddLabel("追踪线颜色 "):AddColorPicker("ESPTracerColorB", { Default = Color3.fromRGB(255,0,128)     })
+VisualsESPBox:AddLabel("追踪线颜色 B"):AddColorPicker("ESPTracerColorB", { Default = Color3.fromRGB(255,0,128)     })
 VisualsESPBox:AddDropdown("ESPTracerOrigin", {
     Text = "追踪线起点", Values = {"底部","顶部","中心","鼠标"}, Default = "底部",
 })
 
 VisualsESPBox:AddToggle("ESPSkeleton", { Text = "骨骼ESP", Default = false })
-VisualsESPBox:AddLabel("骨骼颜色"):AddColorPicker("ESPSkeletonColorA", { Default = Color3.new(1,1,1),         Title = "骨骼 A" })
-VisualsESPBox:AddLabel("骨骼颜色 "):AddColorPicker("ESPSkeletonColorB", { Default = Color3.fromRGB(0,255,255), Title = "骨骼 B" })
+VisualsESPBox:AddLabel("骨骼颜色 A"):AddColorPicker("ESPSkeletonColorA", { Default = Color3.new(1,1,1),         Title = "骨骼 A" })
+VisualsESPBox:AddLabel("骨骼颜色 B"):AddColorPicker("ESPSkeletonColorB", { Default = Color3.fromRGB(0,255,255), Title = "骨骼 B" })
 
 VisualsESPBox:AddToggle("ESPCircularTarget", { Text = "圆形目标", Default = false })
 VisualsESPBox:AddLabel("圆形目标颜色"):AddColorPicker("ESPCircularTargetColor", { Default = Color3.fromRGB(255,200,0), Title = "圆形目标颜色" })
@@ -1936,7 +1942,6 @@ local function isCharacterAlly(targetChar)
     if not LP.Character then return false end
     local myHasVest = hasVestDetails(LP.Character)
     local targetHasVest = hasVestDetails(targetChar)
-    
     if not myHasVest then
         return not targetHasVest
     else
@@ -1951,7 +1956,24 @@ local function lerpColor(a,b,t)
     return Color3.new(a.R+(b.R-a.R)*t, a.G+(b.G-a.G)*t, a.B+(b.B-a.B)*t)
 end
 
-local _rotAngle = 0 
+local _rotAngle = 0
+
+-- 清理旧 Drawing
+if getgenv().esplib_instances then
+    for instance, data in next, getgenv().esplib_instances do
+        pcall(function()
+            if data.box then
+                data.box.outline:Remove(); data.box.fill:Remove()
+                for _,l in next,data.box.grad_lines do l:Remove() end
+                for _,l in next,data.box.fill_grad_lines do l:Remove() end
+                for _,l in next,data.box.corner_fill do l:Remove() end
+                for _,l in next,data.box.corner_outline do l:Remove() end
+                for _,l in next,data.box.box_3d_lines do l:Remove() end
+            end
+        end)
+    end
+    getgenv().esplib_instances = nil
+end
 
 getgenv().esplib = {
     box = {
@@ -2092,11 +2114,8 @@ local function ensure_character_parts(instance,data)
     elseif instance:IsA("BasePart") then add(instance) end
     data.partlist=list; return list
 end
--- =========================================================================
--- [ 填充渐变 ] 
--- =========================================================================
 
-local MAX_FILL_LINES = 400 
+local MAX_FILL_LINES = 400
 
 local function setupFillLines()
     local lines = {}
@@ -2126,16 +2145,16 @@ local function drawFillGradient360(fillLines, x, y, w, h, colorA, colorB, angle)
         local dotR = ((x + w - cx) * dx + (py - cy) * dy) / maxDot
         local tL = clamp(dotL * 0.5 + 0.5, 0, 1)
         local tR = clamp(dotR * 0.5 + 0.5, 0, 1)
-        
+
         local line = fillLines[i]
         line.Color = lerpColor(colorA, colorB, (tL + tR) * 0.5)
-        line.Thickness = math.clamp(rowH + 1.5, 2, 8) 
+        line.Thickness = math.clamp(rowH + 1.5, 2, 8)
         line.From  = Vector2.new(x + 1, py)
         line.To    = Vector2.new(x + w - 1, py)
         line.Visible = true
     end
-    for i = targetRows + 1, #fillLines do 
-        fillLines[i].Visible = false 
+    for i = targetRows + 1, #fillLines do
+        fillLines[i].Visible = false
     end
 end
 
@@ -2169,6 +2188,7 @@ local function hideBox(box)
     for _,l in ipairs(box.corner_outline)   do l.Visible=false end
     for _,l in ipairs(box.box_3d_lines)    do l.Visible=false end
 end
+
 -- =========================================================================
 -- [ 绘图工厂 ]
 -- =========================================================================
@@ -2188,7 +2208,6 @@ function espfunctions.add_box(instance)
     espinstances[instance].box=box
 end
 
--- 创建血条渐变线条 (12段平滑填充)
 local MAX_HP_SEGMENTS = 12
 
 function espfunctions.add_healthbar(instance)
@@ -2268,11 +2287,11 @@ function espfunctions.add_circulartarget(instance)
     if not instance or (espinstances[instance] and espinstances[instance].circulartarget) then return end
     local SEGS=32; local lines={}
     for i=1,SEGS do local l=Drawing.new("Line"); l.Thickness=1.5; l.Transparency=1; l.Visible=false; lines[i]=l end
-    
+
     local TRAIL_SEGS = 25
     local trailLines = {}
     local neonGlowLines = {}
-    for i = 1, TRAIL_SEGS do 
+    for i = 1, TRAIL_SEGS do
         local l = Drawing.new("Line")
         l.Thickness = 2.5
         l.Transparency = 0.4
@@ -2285,21 +2304,22 @@ function espfunctions.add_circulartarget(instance)
         glow.Visible = false
         neonGlowLines[i] = glow
     end
-    
+
     espinstances[instance]=espinstances[instance] or {}
     espinstances[instance].circulartarget={
-        lines = lines, 
-        trailLines = trailLines, 
-        neonGlowLines = neonGlowLines, 
-        segments = SEGS, 
-        alpha = 0, 
-        movingUp = true, 
+        lines = lines,
+        trailLines = trailLines,
+        neonGlowLines = neonGlowLines,
+        segments = SEGS,
+        alpha = 0,
+        movingUp = true,
         trailHistory = {}
     }
 end
+
 local function hide_all(data)
     if data.box      then hideBox(data.box) end
-    if data.healthbar then 
+    if data.healthbar then
         data.healthbar.background.Visible=false
         for _,seg in ipairs(data.healthbar.segments) do seg.Visible=false end
     end
@@ -2309,8 +2329,8 @@ local function hide_all(data)
     if data.tracer    then data.tracer.outline.Visible=false; data.tracer.fill.Visible=false end
     if data.skeleton  then for _,l in ipairs(data.skeleton.lines) do l.Visible=false end end
     if data.weapon    then data.weapon.Visible=false end
-    if data.circulartarget then 
-        for _,l in ipairs(data.circulartarget.lines) do l.Visible=false end 
+    if data.circulartarget then
+        for _,l in ipairs(data.circulartarget.lines) do l.Visible=false end
         for _,l in ipairs(data.circulartarget.trailLines) do l.Visible=false end
         for _,l in ipairs(data.circulartarget.neonGlowLines) do l.Visible=false end
     end
@@ -2326,7 +2346,7 @@ local function cleanup_instance(instance,data)
             for _,l in next,data.box.corner_outline   do l:Remove() end
             for _,l in next,data.box.box_3d_lines     do l:Remove() end
         end
-        if data.healthbar  then 
+        if data.healthbar  then
             data.healthbar.background:Remove()
             for _,seg in ipairs(data.healthbar.segments) do seg:Remove() end
         end
@@ -2336,8 +2356,8 @@ local function cleanup_instance(instance,data)
         if data.tracer     then data.tracer.outline:Remove(); data.tracer.fill:Remove() end
         if data.skeleton   then for _,l in next,data.skeleton.lines do l:Remove() end end
         if data.weapon     then data.weapon:Remove() end
-        if data.circulartarget then 
-            for _,l in ipairs(data.circulartarget.lines) do l:Remove() end 
+        if data.circulartarget then
+            for _,l in ipairs(data.circulartarget.lines) do l:Remove() end
             for _,l in ipairs(data.circulartarget.trailLines) do l:Remove() end
             for _,l in ipairs(data.circulartarget.neonGlowLines) do l:Remove() end
         end
@@ -2367,7 +2387,7 @@ local function get_cached_screen_pos(cache,part)
     local sp=Vector2.new(pos.X,pos.Y); cache[part]={sp,vis}; return sp,vis
 end
 -- =========================================================================
--- [ 渲染循环 ]
+-- [ 渲染循环 - ESP 主逻辑 ]
 -- =========================================================================
 
 RunService.RenderStepped:Connect(function(dt)
@@ -2377,401 +2397,390 @@ RunService.RenderStepped:Connect(function(dt)
 
     local camPos          = Camera.CFrame.Position
     local vp              = Camera.ViewportSize
-    local teamCheck       = Toggles.ESPTeamCheck and Toggles.ESPTeamCheck.Value
+    local teamCheck       = TVal("ESPTeamCheck", true)
     local rotOff1         = _rotAngle / pi2
 
     for instance,data in next,espinstances do
+        local skip = false
         if not instance or not instance.Parent then
-            cleanup_instance(instance,data); espinstances[instance]=nil; continue
-        end
-        
-        if instance == LP.Character then
-            hide_all(data); continue
-        end
-
-        if instance:IsA("Model") and not instance.PrimaryPart then 
-            local head = instance:FindFirstChild("Head")
-            local torso = instance:FindFirstChild("HumanoidRootPart") or instance:FindFirstChild("Torso") or instance:FindFirstChild("UpperTorso")
-            if head then instance.PrimaryPart = head elseif torso then instance.PrimaryPart = torso end
+            cleanup_instance(instance,data); espinstances[instance]=nil; skip = true
+        elseif instance == LP.Character then
+            hide_all(data); skip = true
+        elseif teamCheck and isCharacterAlly(instance) then
+            hide_all(data); skip = true
         end
 
-        if teamCheck and isCharacterAlly(instance) then
-            hide_all(data); continue
-        end
-
-        local healthAttr = instance:GetAttribute("Health")
-        local maxHealthAttr = instance:GetAttribute("MaxHealth") or 100
-        local isDeadAttr = instance:GetAttribute("Dead")
-
-        if isDeadAttr == true or (healthAttr and healthAttr <= 0) then 
-            hide_all(data)
-            continue 
-        end
-
-        local needBox    = boxCfg.enabled      and data.box      ~=nil
-        local needHp     = healthCfg.enabled   and data.healthbar~=nil
-        local needHpTxt  = healthTextCfg.enabled and data.healthtext~=nil
-        local needName   = nameCfg.enabled     and data.name     ~=nil
-        local needDist   = distCfg.enabled     and data.distance ~=nil
-        local needTracer = tracerCfg.enabled   and data.tracer   ~=nil
-        local needSkel   = skeletonCfg.enabled and data.skeleton ~=nil
-        local needWep    = weaponCfg.enabled   and data.weapon   ~=nil
-        local needCirc   = circularTargetCfg.enabled and data.circulartarget ~=nil
-
-        if data.box      and not needBox    then hideBox(data.box) end
-        if data.healthbar and not needHp    then 
-            data.healthbar.background.Visible=false
-            for _,seg in ipairs(data.healthbar.segments) do seg.Visible=false end
-        end
-        if data.healthtext and not needHpTxt then data.healthtext.Visible=false end
-        if data.name     and not needName   then data.name.Visible=false end
-        if data.distance and not needDist   then data.distance.Visible=false end
-        if data.tracer   and not needTracer then data.tracer.outline.Visible=false; data.tracer.fill.Visible=false end
-        if data.skeleton and not needSkel   then for _,l in ipairs(data.skeleton.lines) do l.Visible=false end end
-        if data.weapon   and not needWep    then data.weapon.Visible=false end
-        if data.circulartarget then 
-            if not needCirc then 
-                for _,l in ipairs(data.circulartarget.lines) do l.Visible=false end 
-                for _,l in ipairs(data.circulartarget.trailLines) do l.Visible=false end
-                for _,l in ipairs(data.circulartarget.neonGlowLines) do l.Visible=false end
+        if not skip then
+            if instance:IsA("Model") and not instance.PrimaryPart then
+                local head = instance:FindFirstChild("Head")
+                local torso = instance:FindFirstChild("HumanoidRootPart") or instance:FindFirstChild("Torso") or instance:FindFirstChild("UpperTorso")
+                if head then instance.PrimaryPart = head elseif torso then instance.PrimaryPart = torso end
             end
-        end
 
-        if not(needBox or needHp or needHpTxt or needName or needDist or needTracer or needSkel or needWep or needCirc) then continue end
+            local healthAttr = instance:GetAttribute("Health")
+            local maxHealthAttr = instance:GetAttribute("MaxHealth") or 100
+            local isDeadAttr = instance:GetAttribute("Dead")
 
-        local parts=ensure_character_parts(instance,data)
-        local min2,max2,onscreen=nil,nil,false
-        local c3d,on3d=nil,false
+            if isDeadAttr == true or (healthAttr and healthAttr <= 0) then
+                hide_all(data)
+            else
+                local needBox    = boxCfg.enabled      and data.box      ~=nil
+                local needHp     = healthCfg.enabled   and data.healthbar~=nil
+                local needHpTxt  = healthTextCfg.enabled and data.healthtext~=nil
+                local needName   = nameCfg.enabled     and data.name     ~=nil
+                local needDist   = distCfg.enabled     and data.distance ~=nil
+                local needTracer = tracerCfg.enabled   and data.tracer   ~=nil
+                local needSkel   = skeletonCfg.enabled and data.skeleton ~=nil
+                local needWep    = weaponCfg.enabled   and data.weapon   ~=nil
+                local needCirc   = circularTargetCfg.enabled and data.circulartarget ~=nil
 
-        local x0,y0,z0,x1,y1,z1=compute_world_aabb(parts)
-        if x0 then
-            min2,max2,onscreen=project_fixed_box(x0,y0,z0,x1,y1,z1)
-            if needBox and boxCfg.type=="3D" then
-                c3d,on3d=project_aabb_corners_3d(x0,y0,z0,x1,y1,z1)
-            end
-        end
-                -- ── 方框 ──────────────────────────────────────────────────────────
-        if data.box then
-            if needBox and onscreen and min2 and max2 then
-                local x,y = min2.X,min2.Y
-                local w   = max2.X-min2.X
-                local h   = max2.Y-min2.Y
-                local cA  = boxCfg.colorA; local cB=boxCfg.colorB
-                local fA  = boxCfg.fillColorA; local fB=boxCfg.fillColorB
+                if data.box      and not needBox    then hideBox(data.box) end
+                if data.healthbar and not needHp    then
+                    data.healthbar.background.Visible=false
+                    for _,seg in ipairs(data.healthbar.segments) do seg.Visible=false end
+                end
+                if data.healthtext and not needHpTxt then data.healthtext.Visible=false end
+                if data.name     and not needName   then data.name.Visible=false end
+                if data.distance and not needDist   then data.distance.Visible=false end
+                if data.tracer   and not needTracer then data.tracer.outline.Visible=false; data.tracer.fill.Visible=false end
+                if data.skeleton and not needSkel   then for _,l in ipairs(data.skeleton.lines) do l.Visible=false end end
+                if data.weapon   and not needWep    then data.weapon.Visible=false end
+                if data.circulartarget and not needCirc then
+                    for _,l in ipairs(data.circulartarget.lines) do l.Visible=false end
+                    for _,l in ipairs(data.circulartarget.trailLines) do l.Visible=false end
+                    for _,l in ipairs(data.circulartarget.neonGlowLines) do l.Visible=false end
+                end
 
-                if boxCfg.type=="2D" then
-                    if boxCfg.fillGradient then
-                        drawFillGradient360(data.box.fill_grad_lines, x, y, w, h, fA, fB, _rotAngle)
-                    else
-                        for _,l in ipairs(data.box.fill_grad_lines) do l.Visible=false end
-                    end
-                    drawBoxOutlineGradient(data.box, x, y, w, h, cA, cB, rotOff1)
-                    data.box.outline.Visible=false; data.box.fill.Visible=false
-                    for _,l in ipairs(data.box.corner_fill)   do l.Visible=false end
-                    for _,l in ipairs(data.box.corner_outline) do l.Visible=false end
-                    for _,l in ipairs(data.box.box_3d_lines)   do l.Visible=false end
+                if needBox or needHp or needHpTxt or needName or needDist or needTracer or needSkel or needWep or needCirc then
+                    local parts=ensure_character_parts(instance,data)
+                    local min2,max2,onscreen=nil,nil,false
+                    local c3d,on3d=nil,false
 
-                elseif boxCfg.type=="角落" then
-                    for _,l in ipairs(data.box.grad_lines) do l.Visible=false end
-                    data.box.outline.Visible=false; data.box.fill.Visible=false
-                    if boxCfg.fillGradient then
-                        drawFillGradient360(data.box.fill_grad_lines, x, y, w, h, fA, fB, _rotAngle)
-                    else for _,l in ipairs(data.box.fill_grad_lines) do l.Visible=false end end
-                    
-                    local len=math.min(w,h)*.25
-                    local corners={
-                        {Vector2.new(x,y),     Vector2.new(x+len,y)  },
-                        {Vector2.new(x,y),     Vector2.new(x,y+len)  },
-                        {Vector2.new(x+w-len,y),Vector2.new(x+w,y)   },
-                        {Vector2.new(x+w,y),   Vector2.new(x+w,y+len)},
-                        {Vector2.new(x,y+h),   Vector2.new(x+len,y+h)},
-                        {Vector2.new(x,y+h-len),Vector2.new(x,y+h)   },
-                        {Vector2.new(x+w-len,y+h),Vector2.new(x+w,y+h)},
-                        {Vector2.new(x+w,y+h-len),Vector2.new(x+w,y+h)},
-                    }
-                    for i=1,8 do
-                        local t=(i-1)/8; local col=lerpColor(cA,cB,t)
-                        data.box.corner_outline[i].From=corners[i][1]; data.box.corner_outline[i].To=corners[i][2]
-                        data.box.corner_outline[i].Color=boxCfg.outline; data.box.corner_outline[i].Visible=true
-                        data.box.corner_fill[i].From=corners[i][1]; data.box.corner_fill[i].To=corners[i][2]
-                        data.box.corner_fill[i].Color=col; data.box.corner_fill[i].Visible=true
-                    end
-                    for _,l in ipairs(data.box.box_3d_lines) do l.Visible=false end
-
-                elseif boxCfg.type=="3D" then
-                    for _,l in ipairs(data.box.fill_grad_lines) do l.Visible=false end
-                    for _,l in ipairs(data.box.grad_lines)      do l.Visible=false end
-                    data.box.outline.Visible=false; data.box.fill.Visible=false
-                    for _,l in ipairs(data.box.corner_fill)   do l.Visible=false end
-                    for _,l in ipairs(data.box.corner_outline) do l.Visible=false end
-                    if c3d and #c3d==8 then
-                        for i=1,12 do
-                            local e=BOX_3D_EDGES[i]
-                            data.box.box_3d_lines[i].From=c3d[e[1]]; data.box.box_3d_lines[i].To=c3d[e[2]]
-                            data.box.box_3d_lines[i].Color=lerpColor(cA,cB,(i-1)/12)
-                            data.box.box_3d_lines[i].Visible=on3d
+                    local x0,y0,z0,x1,y1,z1=compute_world_aabb(parts)
+                    if x0 then
+                        min2,max2,onscreen=project_fixed_box(x0,y0,z0,x1,y1,z1)
+                        if needBox and boxCfg.type=="3D" then
+                            c3d,on3d=project_aabb_corners_3d(x0,y0,z0,x1,y1,z1)
                         end
-                    else for _,l in ipairs(data.box.box_3d_lines) do l.Visible=false end end
-                end
-            else hideBox(data.box) end
-        end
-
-        -- ── 血条 (渐变) ──────────────────
-        if data.healthbar then
-            local bg = data.healthbar.background
-            local segs = data.healthbar.segments
-            if needHp and onscreen and min2 and max2 and healthAttr then
-                local x = min2.X - 6
-                local y = min2.Y
-                local w = 3
-                local h = max2.Y - min2.Y
-                
-                local maxHp = maxHealthAttr > 0 and maxHealthAttr or 100
-                local hpFraction = clamp(healthAttr / maxHp, 0, 1)
-                
-                bg.Position = Vector2.new(x - 1, y - 1)
-                bg.Size = Vector2.new(w + 2, h + 2)
-                bg.Visible = true
-
-                local barHeight = h * hpFraction
-                local startY = y + (h - barHeight)
-                
-                local activeSegCount = math.clamp(math.floor(MAX_HP_SEGMENTS * hpFraction), 1, MAX_HP_SEGMENTS)
-                local segH = barHeight / activeSegCount
-
-                for i = 1, MAX_HP_SEGMENTS do
-                    local segLine = segs[i]
-                    if i <= activeSegCount then
-                        local segmentFraction = (i - 0.5) / MAX_HP_SEGMENTS
-                        -- 在顶部颜色和底部颜色之间渐变
-                        segLine.Color = lerpColor(healthCfg.bottomColor, healthCfg.topColor, segmentFraction)
-                        
-                        local py1 = startY + (i - 1) * segH
-                        local py2 = startY + i * segH
-                        
-                        segLine.From = Vector2.new(x + w * 0.5, py1)
-                        segLine.To = Vector2.new(x + w * 0.5, py2)
-                        segLine.Thickness = w
-                        segLine.Visible = true
-                    else
-                        segLine.Visible = false
                     end
-                end
-            else
-                bg.Visible = false
-                for _,seg in ipairs(segs) do seg.Visible = false end
-            end
-        end
 
-        -- ── 血量文字 ──────────────────────────────────────────────────
-        if data.healthtext then
-            if needHpTxt and onscreen and min2 and max2 and healthAttr then
-                local currentHp = math.floor(healthAttr + 0.5)
-                local maxHp = maxHealthAttr > 0 and maxHealthAttr or 100
-                
-                data.healthtext.Text = tostring(currentHp)
-                data.healthtext.Size = healthTextCfg.size
-                data.healthtext.Color = healthTextCfg.color
-                
-                local textX = max2.X + 4
-                local textY = min2.Y + (max2.Y - min2.Y) * (1 - (healthAttr / maxHp)) - 4
-                data.healthtext.Position = Vector2.new(textX, textY)
-                data.healthtext.Visible = true
-            else
-                data.healthtext.Visible = false
-            end
-        end
+                    -- 方框
+                    if data.box then
+                        if needBox and onscreen and min2 and max2 then
+                            local x,y = min2.X,min2.Y
+                            local w   = max2.X-min2.X
+                            local h   = max2.Y-min2.Y
+                            local cA  = boxCfg.colorA; local cB=boxCfg.colorB
+                            local fA  = boxCfg.fillColorA; local fB=boxCfg.fillColorB
 
-        -- ── 名称 ─────────────────────────────────────────────────────────
-        if data.name then
-            if needName and onscreen and min2 and max2 then
-                data.name.Text=instance.Name; data.name.Size=nameCfg.size; data.name.Color=nameCfg.fill
-                data.name.Position=Vector2.new((min2.X+max2.X)*.5,min2.Y-15); data.name.Visible=true
-            else data.name.Visible=false end
-        end
+                            if boxCfg.type=="2D" then
+                                if boxCfg.fillGradient then
+                                    drawFillGradient360(data.box.fill_grad_lines, x, y, w, h, fA, fB, _rotAngle)
+                                else
+                                    for _,l in ipairs(data.box.fill_grad_lines) do l.Visible=false end
+                                end
+                                drawBoxOutlineGradient(data.box, x, y, w, h, cA, cB, rotOff1)
+                                data.box.outline.Visible=false; data.box.fill.Visible=false
+                                for _,l in ipairs(data.box.corner_fill)   do l.Visible=false end
+                                for _,l in ipairs(data.box.corner_outline) do l.Visible=false end
+                                for _,l in ipairs(data.box.box_3d_lines)   do l.Visible=false end
+                            elseif boxCfg.type=="角落" then
+                                for _,l in ipairs(data.box.grad_lines) do l.Visible=false end
+                                data.box.outline.Visible=false; data.box.fill.Visible=false
+                                if boxCfg.fillGradient then
+                                    drawFillGradient360(data.box.fill_grad_lines, x, y, w, h, fA, fB, _rotAngle)
+                                else for _,l in ipairs(data.box.fill_grad_lines) do l.Visible=false end end
+                                local len=math.min(w,h)*.25
+                                local corners={
+                                    {Vector2.new(x,y),     Vector2.new(x+len,y)  },
+                                    {Vector2.new(x,y),     Vector2.new(x,y+len)  },
+                                    {Vector2.new(x+w-len,y),Vector2.new(x+w,y)   },
+                                    {Vector2.new(x+w,y),   Vector2.new(x+w,y+len)},
+                                    {Vector2.new(x,y+h),   Vector2.new(x+len,y+h)},
+                                    {Vector2.new(x,y+h-len),Vector2.new(x,y+h)   },
+                                    {Vector2.new(x+w-len,y+h),Vector2.new(x+w,y+h)},
+                                    {Vector2.new(x+w,y+h-len),Vector2.new(x+w,y+h)},
+                                }
+                                for i=1,8 do
+                                    local t=(i-1)/8; local col=lerpColor(cA,cB,t)
+                                    data.box.corner_outline[i].From=corners[i][1]; data.box.corner_outline[i].To=corners[i][2]
+                                    data.box.corner_outline[i].Color=boxCfg.outline; data.box.corner_outline[i].Visible=true
+                                    data.box.corner_fill[i].From=corners[i][1]; data.box.corner_fill[i].To=corners[i][2]
+                                    data.box.corner_fill[i].Color=col; data.box.corner_fill[i].Visible=true
+                                end
+                                for _,l in ipairs(data.box.box_3d_lines) do l.Visible=false end
+                            elseif boxCfg.type=="3D" then
+                                for _,l in ipairs(data.box.fill_grad_lines) do l.Visible=false end
+                                for _,l in ipairs(data.box.grad_lines)      do l.Visible=false end
+                                data.box.outline.Visible=false; data.box.fill.Visible=false
+                                for _,l in ipairs(data.box.corner_fill)   do l.Visible=false end
+                                for _,l in ipairs(data.box.corner_outline) do l.Visible=false end
+                                if c3d and #c3d==8 then
+                                    for i=1,12 do
+                                        local e=BOX_3D_EDGES[i]
+                                        data.box.box_3d_lines[i].From=c3d[e[1]]; data.box.box_3d_lines[i].To=c3d[e[2]]
+                                        data.box.box_3d_lines[i].Color=lerpColor(cA,cB,(i-1)/12)
+                                        data.box.box_3d_lines[i].Visible=on3d
+                                    end
+                                else for _,l in ipairs(data.box.box_3d_lines) do l.Visible=false end end
+                            end
+                        else hideBox(data.box) end
+                    end
 
-        -- ── 距离 ─────────────────────────────────────────────────────
-        if data.distance then
-            if needDist and onscreen and min2 and max2 then
-                local dist=999
-                if instance:IsA("Model") and instance.PrimaryPart then dist=(camPos-instance.PrimaryPart.Position).Magnitude
-                elseif instance:IsA("BasePart") then dist=(camPos-instance.Position).Magnitude end
-                data.distance.Text=tostring(floor(dist)).."米"; data.distance.Size=distCfg.size
-                data.distance.Color=distCfg.color
-                data.distance.Position=Vector2.new((min2.X+max2.X)*.5,max2.Y+2); data.distance.Visible=true
-            else data.distance.Visible=false end
-        end
+                    -- 血条
+                    if data.healthbar then
+                        local bg = data.healthbar.background
+                        local segs = data.healthbar.segments
+                        if needHp and onscreen and min2 and max2 and healthAttr then
+                            local x = min2.X - 6
+                            local y = min2.Y
+                            local w = 3
+                            local h = max2.Y - min2.Y
 
-        -- ── 武器 ───────────────────────────────────────────────────────
-        if data.weapon then
-            if needWep and onscreen and min2 and max2 then
-                if not data.player then data.player=Players:GetPlayerFromCharacter(instance) end
-                local wn=data.player and GetWeaponName(data.player) or "无"
-                data.weapon.Text="["..wn.."]"; data.weapon.Size=weaponCfg.size or 13
-                data.weapon.Color=weaponCfg.fill
-                data.weapon.Position=Vector2.new((min2.X+max2.X)*.5,max2.Y+15)
-                data.weapon.Center=true; data.weapon.Visible=true
-            else data.weapon.Visible=false end
-        end
+                            local maxHp = maxHealthAttr > 0 and maxHealthAttr or 100
+                            local hpFraction = clamp(healthAttr / maxHp, 0, 1)
 
-        -- ── 追踪线 ───────────────────────────────────────────────────────
-        if data.tracer then
-            if needTracer and onscreen and min2 and max2 then
-                local from_pos
-                if tracerCfg.from=="mouse" then local ml=UserInputService:GetMouseLocation(); from_pos=Vector2.new(ml.X,ml.Y)
-                elseif tracerCfg.from=="top" then from_pos=Vector2.new(vp.X/2,0)
-                elseif tracerCfg.from=="center" then from_pos=Vector2.new(vp.X/2,vp.Y/2)
-                else from_pos=Vector2.new(vp.X/2,vp.Y) end
-                local to_pos=(min2+max2)/2
-                local dist=0
-                if instance:IsA("Model") and instance.PrimaryPart then dist=clamp((camPos-instance.PrimaryPart.Position).Magnitude/200,0,1) end
-                local col=lerpColor(tracerCfg.fillA,tracerCfg.fillB,dist)
-                data.tracer.outline.From=from_pos; data.tracer.outline.To=to_pos; data.tracer.outline.Color=tracerCfg.outline; data.tracer.outline.Visible=true
-                data.tracer.fill.From=from_pos; data.tracer.fill.To=to_pos; data.tracer.fill.Color=col; data.tracer.fill.Visible=true
-            else data.tracer.outline.Visible=false; data.tracer.fill.Visible=false end
-        end
+                            bg.Position = Vector2.new(x - 1, y - 1)
+                            bg.Size = Vector2.new(w + 2, h + 2)
+                            bg.Visible = true
 
-        -- ── 骨骼 ─────────────────────────────────────────────────────
-        if data.skeleton then
-            if needSkel then
-                local bp=data.skeleton.bone_parts; local lines=data.skeleton.lines; local sc=data.skeleton.screenCache
-                for k in next,sc do sc[k]=nil end
-                local anyDrawn = false
-                for i=1,#bp do
-                    local pair=bp[i]; local pA,pB=pair[1],pair[2]; local line=lines[i]
-                    if pA and pB and pA.Parent and pB.Parent then
-                        local posA,vA=get_cached_screen_pos(sc,pA); local posB,vB=get_cached_screen_pos(sc,pB)
-                        if vA or vB then
-                            line.From=posA; line.To=posB
-                            line.Color=lerpColor(skeletonCfg.colorA,skeletonCfg.colorB,(i-1)/#bp)
-                            line.Thickness=skeletonCfg.thickness; line.Visible=true
-                            anyDrawn = true
-                        else line.Visible=false end
-                    else line.Visible=false end
-                end
-                if not anyDrawn then for _,l in ipairs(lines) do l.Visible=false end end
-            else for _,l in ipairs(data.skeleton.lines) do l.Visible=false end end
-        end
+                            local barHeight = h * hpFraction
+                            local startY = y + (h - barHeight)
 
-        -- ── 圆形目标 ──────────────────────────────────────────────
-        if data.circulartarget then
-            local ct = data.circulartarget
-            local head = instance:FindFirstChild("Head")
-            local root = instance:IsA("Model") and instance.PrimaryPart or instance:FindFirstChild("HumanoidRootPart") or head
-            
-            if needCirc and head and root then
-                local speed = 2.0 
-                if ct.movingUp then
-                    ct.alpha = ct.alpha + dt * speed
-                    if ct.alpha >= 1 then ct.alpha = 1; ct.movingUp = false end
-                else
-                    ct.alpha = ct.alpha - dt * speed
-                    if ct.alpha <= 0 then ct.alpha = 0; ct.movingUp = true end
-                end
+                            local activeSegCount = math.clamp(math.floor(MAX_HP_SEGMENTS * hpFraction), 1, MAX_HP_SEGMENTS)
+                            local segH = barHeight / activeSegCount
 
-                local footPos = root.Position - Vector3.new(0, (root.Size.Y * 0.8) + 1.2, 0)
-                local headPos = head.Position + Vector3.new(0, 0.3, 0)
-                local currentWorldPos = footPos:Lerp(headPos, ct.alpha)
-                
-                table.insert(ct.trailHistory, 1, currentWorldPos)
-                if #ct.trailHistory > #ct.trailLines then table.remove(ct.trailHistory) end
-
-                for i = 1, #ct.trailLines do
-                    local trailLine = ct.trailLines[i]
-                    local glowLine = ct.neonGlowLines[i]
-                    local p1 = ct.trailHistory[i]
-                    local p2 = ct.trailHistory[i + 1]
-                    
-                    if p1 and p2 then
-                        local s1, v1 = WorldToViewportPoint(Camera, p1)
-                        local s2, v2 = WorldToViewportPoint(Camera, p2)
-                        if v1 or v2 then
-                            local fadeFactor = clamp(1 - (i / #ct.trailLines), 0.05, 1)
-                            
-                            glowLine.From = Vector2.new(s1.X, s1.Y)
-                            glowLine.To = Vector2.new(s2.X, s2.Y)
-                            glowLine.Color = circularTargetCfg.color
-                            glowLine.Transparency = fadeFactor * 0.35
-                            glowLine.Visible = true
-
-                            trailLine.From = Vector2.new(s1.X, s1.Y)
-                            trailLine.To = Vector2.new(s2.X, s2.Y)
-                            trailLine.Color = circularTargetCfg.color
-                            trailLine.Transparency = fadeFactor * 0.85
-                            trailLine.Visible = true
+                            for i = 1, MAX_HP_SEGMENTS do
+                                local segLine = segs[i]
+                                if i <= activeSegCount then
+                                    local segmentFraction = (i - 0.5) / MAX_HP_SEGMENTS
+                                    segLine.Color = lerpColor(healthCfg.bottomColor, healthCfg.topColor, segmentFraction)
+                                    local py1 = startY + (i - 1) * segH
+                                    local py2 = startY + i * segH
+                                    segLine.From = Vector2.new(x + w * 0.5, py1)
+                                    segLine.To = Vector2.new(x + w * 0.5, py2)
+                                    segLine.Thickness = w
+                                    segLine.Visible = true
+                                else
+                                    segLine.Visible = false
+                                end
+                            end
                         else
-                            trailLine.Visible = false; glowLine.Visible = false
+                            bg.Visible = false
+                            for _,seg in ipairs(segs) do seg.Visible = false end
                         end
-                    else
-                        trailLine.Visible = false; glowLine.Visible = false
                     end
-                end
 
-                local R = 2.2
-                local SEGS = ct.segments
-                local col = circularTargetCfg.color
-                for i = 1, SEGS do
-                    local aA = pi2 * ((i - 1) / SEGS)
-                    local aB = pi2 * (i / SEGS)
-                    local wA = currentWorldPos + Vector3.new(cos(aA) * R, 0, sin(aA) * R)
-                    local wB = currentWorldPos + Vector3.new(cos(aB) * R, 0, sin(aB) * R)
-                    local sA, vA = WorldToViewportPoint(Camera, wA)
-                    local sB, vB = WorldToViewportPoint(Camera, wB)
-                    local line = ct.lines[i]
-                    if vA or vB then
-                        line.From = Vector2.new(sA.X, sA.Y)
-                        line.To = Vector2.new(sB.X, sB.Y)
-                        line.Color = col
-                        line.Visible = true
-                    else
-                        line.Visible = false
+                    -- 血量文字
+                    if data.healthtext then
+                        if needHpTxt and onscreen and min2 and max2 and healthAttr then
+                            local currentHp = math.floor(healthAttr + 0.5)
+                            local maxHp = maxHealthAttr > 0 and maxHealthAttr or 100
+                            data.healthtext.Text = tostring(currentHp)
+                            data.healthtext.Size = healthTextCfg.size
+                            data.healthtext.Color = healthTextCfg.color
+                            local textX = max2.X + 4
+                            local textY = min2.Y + (max2.Y - min2.Y) * (1 - (healthAttr / maxHp)) - 4
+                            data.healthtext.Position = Vector2.new(textX, textY)
+                            data.healthtext.Visible = true
+                        else
+                            data.healthtext.Visible = false
+                        end
+                    end
+
+                    -- 名称
+                    if data.name then
+                        if needName and onscreen and min2 and max2 then
+                            data.name.Text=instance.Name; data.name.Size=nameCfg.size; data.name.Color=nameCfg.fill
+                            data.name.Position=Vector2.new((min2.X+max2.X)*.5,min2.Y-15); data.name.Visible=true
+                        else data.name.Visible=false end
+                    end
+
+                    -- 距离
+                    if data.distance then
+                        if needDist and onscreen and min2 and max2 then
+                            local dist=999
+                            if instance:IsA("Model") and instance.PrimaryPart then dist=(camPos-instance.PrimaryPart.Position).Magnitude
+                            elseif instance:IsA("BasePart") then dist=(camPos-instance.Position).Magnitude end
+                            data.distance.Text=tostring(floor(dist)).."米"; data.distance.Size=distCfg.size
+                            data.distance.Color=distCfg.color
+                            data.distance.Position=Vector2.new((min2.X+max2.X)*.5,max2.Y+2); data.distance.Visible=true
+                        else data.distance.Visible=false end
+                    end
+
+                    -- 武器
+                    if data.weapon then
+                        if needWep and onscreen and min2 and max2 then
+                            if not data.player then data.player=Players:GetPlayerFromCharacter(instance) end
+                            local wn=data.player and GetWeaponName(data.player) or "无"
+                            data.weapon.Text="["..wn.."]"; data.weapon.Size=weaponCfg.size or 13
+                            data.weapon.Color=weaponCfg.fill
+                            data.weapon.Position=Vector2.new((min2.X+max2.X)*.5,max2.Y+15)
+                            data.weapon.Center=true; data.weapon.Visible=true
+                        else data.weapon.Visible=false end
+                    end
+
+                    -- 追踪线
+                    if data.tracer then
+                        if needTracer and onscreen and min2 and max2 then
+                            local from_pos
+                            if tracerCfg.from=="mouse" then local ml=UserInputService:GetMouseLocation(); from_pos=Vector2.new(ml.X,ml.Y)
+                            elseif tracerCfg.from=="top" then from_pos=Vector2.new(vp.X/2,0)
+                            elseif tracerCfg.from=="center" then from_pos=Vector2.new(vp.X/2,vp.Y/2)
+                            else from_pos=Vector2.new(vp.X/2,vp.Y) end
+                            local to_pos=(min2+max2)/2
+                            local dist=0
+                            if instance:IsA("Model") and instance.PrimaryPart then dist=clamp((camPos-instance.PrimaryPart.Position).Magnitude/200,0,1) end
+                            local col=lerpColor(tracerCfg.fillA,tracerCfg.fillB,dist)
+                            data.tracer.outline.From=from_pos; data.tracer.outline.To=to_pos; data.tracer.outline.Color=tracerCfg.outline; data.tracer.outline.Visible=true
+                            data.tracer.fill.From=from_pos; data.tracer.fill.To=to_pos; data.tracer.fill.Color=col; data.tracer.fill.Visible=true
+                        else data.tracer.outline.Visible=false; data.tracer.fill.Visible=false end
+                    end
+
+                    -- 骨骼
+                    if data.skeleton then
+                        if needSkel then
+                            local bp=data.skeleton.bone_parts; local lines=data.skeleton.lines; local sc=data.skeleton.screenCache
+                            for k in next,sc do sc[k]=nil end
+                            local anyDrawn = false
+                            for i=1,#bp do
+                                local pair=bp[i]; local pA,pB=pair[1],pair[2]; local line=lines[i]
+                                if pA and pB and pA.Parent and pB.Parent then
+                                    local posA,vA=get_cached_screen_pos(sc,pA); local posB,vB=get_cached_screen_pos(sc,pB)
+                                    if vA or vB then
+                                        line.From=posA; line.To=posB
+                                        line.Color=lerpColor(skeletonCfg.colorA,skeletonCfg.colorB,(i-1)/#bp)
+                                        line.Thickness=skeletonCfg.thickness; line.Visible=true
+                                        anyDrawn = true
+                                    else line.Visible=false end
+                                else line.Visible=false end
+                            end
+                            if not anyDrawn then for _,l in ipairs(lines) do l.Visible=false end end
+                        else for _,l in ipairs(data.skeleton.lines) do l.Visible=false end end
+                    end
+
+                    -- 圆形目标
+                    if data.circulartarget then
+                        local ct = data.circulartarget
+                        local head = instance:FindFirstChild("Head")
+                        local root = instance:IsA("Model") and instance.PrimaryPart or instance:FindFirstChild("HumanoidRootPart") or head
+
+                        if needCirc and head and root then
+                            local speed = 2.0
+                            if ct.movingUp then
+                                ct.alpha = ct.alpha + dt * speed
+                                if ct.alpha >= 1 then ct.alpha = 1; ct.movingUp = false end
+                            else
+                                ct.alpha = ct.alpha - dt * speed
+                                if ct.alpha <= 0 then ct.alpha = 0; ct.movingUp = true end
+                            end
+
+                            local footPos = root.Position - Vector3.new(0, (root.Size.Y * 0.8) + 1.2, 0)
+                            local headPos = head.Position + Vector3.new(0, 0.3, 0)
+                            local currentWorldPos = footPos:Lerp(headPos, ct.alpha)
+
+                            table.insert(ct.trailHistory, 1, currentWorldPos)
+                            if #ct.trailHistory > #ct.trailLines then table.remove(ct.trailHistory) end
+
+                            for i = 1, #ct.trailLines do
+                                local trailLine = ct.trailLines[i]
+                                local glowLine = ct.neonGlowLines[i]
+                                local p1 = ct.trailHistory[i]
+                                local p2 = ct.trailHistory[i + 1]
+
+                                if p1 and p2 then
+                                    local s1, v1 = WorldToViewportPoint(Camera, p1)
+                                    local s2, v2 = WorldToViewportPoint(Camera, p2)
+                                    if v1 or v2 then
+                                        local fadeFactor = clamp(1 - (i / #ct.trailLines), 0.05, 1)
+                                        glowLine.From = Vector2.new(s1.X, s1.Y)
+                                        glowLine.To = Vector2.new(s2.X, s2.Y)
+                                        glowLine.Color = circularTargetCfg.color
+                                        glowLine.Transparency = fadeFactor * 0.35
+                                        glowLine.Visible = true
+
+                                        trailLine.From = Vector2.new(s1.X, s1.Y)
+                                        trailLine.To = Vector2.new(s2.X, s2.Y)
+                                        trailLine.Color = circularTargetCfg.color
+                                        trailLine.Transparency = fadeFactor * 0.85
+                                        trailLine.Visible = true
+                                    else
+                                        trailLine.Visible = false; glowLine.Visible = false
+                                    end
+                                else
+                                    trailLine.Visible = false; glowLine.Visible = false
+                                end
+                            end
+
+                            local R = 2.2
+                            local SEGS = ct.segments
+                            local col = circularTargetCfg.color
+                            for i = 1, SEGS do
+                                local aA = pi2 * ((i - 1) / SEGS)
+                                local aB = pi2 * (i / SEGS)
+                                local wA = currentWorldPos + Vector3.new(cos(aA) * R, 0, sin(aA) * R)
+                                local wB = currentWorldPos + Vector3.new(cos(aB) * R, 0, sin(aB) * R)
+                                local sA, vA = WorldToViewportPoint(Camera, wA)
+                                local sB, vB = WorldToViewportPoint(Camera, wB)
+                                local line = ct.lines[i]
+                                if vA or vB then
+                                    line.From = Vector2.new(sA.X, sA.Y)
+                                    line.To = Vector2.new(sB.X, sB.Y)
+                                    line.Color = col
+                                    line.Visible = true
+                                else
+                                    line.Visible = false
+                                end
+                            end
+                        else
+                            for _,l in ipairs(ct.lines) do l.Visible=false end
+                            for _,l in ipairs(ct.trailLines) do l.Visible=false end
+                            for _,l in ipairs(ct.neonGlowLines) do l.Visible=false end
+                        end
                     end
                 end
-            else
-                for _,l in ipairs(ct.lines) do l.Visible=false end
-                for _,l in ipairs(ct.trailLines) do l.Visible=false end
-                for _,l in ipairs(ct.neonGlowLines) do l.Visible=false end
             end
         end
     end
 end)
 
 for k,v in next,espfunctions do esplib[k]=v end
+
 -- =========================================================================
 -- [ 设置同步 ]
 -- =========================================================================
 
 local function updateESPSettings()
-    local bt=Options.ESPBoxType.Value
+    local bt=OVal("ESPBoxType","2D方框")
     if bt=="禁用" then esplib.box.enabled=false
-    else esplib.box.enabled=Toggles.ESPEnabled.Value; esplib.box.type=bt:gsub("方框","") end
-    esplib.box.colorA        = Options.ESPBoxColorA.Value
-    esplib.box.colorB        = Options.ESPBoxColorB.Value
-    esplib.box.fillGradient  = Toggles.ESPBoxFillGradient.Value
-    esplib.box.fillColorA    = Options.ESPFillColorA.Value
-    esplib.box.fillColorB    = Options.ESPFillColorB.Value
-    esplib.box.fillRotation  = Toggles.ESPBoxFillRotation.Value
-    esplib.box.rotationSpeed = Options.ESPBoxRotationSpeed.Value
-    esplib.name.enabled      = Toggles.ESPEnabled.Value and Toggles.ESPName.Value
-    esplib.name.fill         = Options.ESPNameColor.Value
-    esplib.healthbar.enabled     = Toggles.ESPEnabled.Value and Toggles.ESPHealth.Value
-    esplib.healthbar.topColor    = Options.ESPHealthTopColor.Value
-    esplib.healthbar.bottomColor = Options.ESPHealthBottomColor.Value
-    esplib.healthtext.enabled    = Toggles.ESPEnabled.Value and Toggles.ESPHealthText.Value
-    esplib.healthtext.color      = Options.ESPHealthTextColor.Value
-    esplib.distance.enabled      = Toggles.ESPEnabled.Value and Toggles.ESPDistance.Value
-    esplib.distance.color        = Options.ESPDistanceColor.Value
-    esplib.tracer.enabled        = Toggles.ESPEnabled.Value and Toggles.ESPTracer.Value
-    esplib.tracer.fillA          = Options.ESPTracerColor.Value
-    esplib.tracer.fillB          = Options.ESPTracerColorB.Value
-    esplib.tracer.from           = Options.ESPTracerOrigin.Value
-    esplib.skeleton.enabled      = Toggles.ESPEnabled.Value and Toggles.ESPSkeleton.Value
-    esplib.skeleton.colorA       = Options.ESPSkeletonColorA.Value
-    esplib.skeleton.colorB       = Options.ESPSkeletonColorB.Value
-    esplib.weapon.enabled        = Toggles.ESPEnabled.Value and Toggles.ESPWeapon.Value
-    esplib.weapon.fill           = Options.ESPWeaponColor and Options.ESPWeaponColor.Value or Color3.new(1,1,1)
-    esplib.circulartarget.enabled = Toggles.ESPEnabled.Value and Toggles.ESPCircularTarget.Value
-    esplib.circulartarget.color   = Options.ESPCircularTargetColor.Value
+    else esplib.box.enabled=TVal("ESPEnabled",false); esplib.box.type=bt:gsub("方框","") end
+    esplib.box.colorA        = OVal("ESPBoxColorA", Color3.new(1,1,1))
+    esplib.box.colorB        = OVal("ESPBoxColorB", Color3.fromRGB(0,200,255))
+    esplib.box.fillGradient  = TVal("ESPBoxFillGradient", false)
+    esplib.box.fillColorA    = OVal("ESPFillColorA", Color3.fromRGB(255,50,50))
+    esplib.box.fillColorB    = OVal("ESPFillColorB", Color3.fromRGB(50,50,255))
+    esplib.box.fillRotation  = TVal("ESPBoxFillRotation", false)
+    esplib.box.rotationSpeed = OVal("ESPBoxRotationSpeed", 2)
+    esplib.name.enabled      = TVal("ESPEnabled",false) and TVal("ESPName", false)
+    esplib.name.fill         = OVal("ESPNameColor", Color3.new(1,1,1))
+    esplib.healthbar.enabled     = TVal("ESPEnabled",false) and TVal("ESPHealth", false)
+    esplib.healthbar.topColor    = OVal("ESPHealthTopColor", Color3.fromRGB(0,255,0))
+    esplib.healthbar.bottomColor = OVal("ESPHealthBottomColor", Color3.fromRGB(255,0,0))
+    esplib.healthtext.enabled    = TVal("ESPEnabled",false) and TVal("ESPHealthText", false)
+    esplib.healthtext.color      = OVal("ESPHealthTextColor", Color3.new(1,1,1))
+    esplib.distance.enabled      = TVal("ESPEnabled",false) and TVal("ESPDistance", false)
+    esplib.distance.color        = OVal("ESPDistanceColor", Color3.new(1,1,1))
+    esplib.tracer.enabled        = TVal("ESPEnabled",false) and TVal("ESPTracer", false)
+    esplib.tracer.fillA          = OVal("ESPTracerColor", Color3.new(1,1,1))
+    esplib.tracer.fillB          = OVal("ESPTracerColorB", Color3.fromRGB(255,0,128))
+    esplib.tracer.from           = OVal("ESPTracerOrigin", "底部")
+    esplib.skeleton.enabled      = TVal("ESPEnabled",false) and TVal("ESPSkeleton", false)
+    esplib.skeleton.colorA       = OVal("ESPSkeletonColorA", Color3.new(1,1,1))
+    esplib.skeleton.colorB       = OVal("ESPSkeletonColorB", Color3.fromRGB(0,255,255))
+    esplib.weapon.enabled        = TVal("ESPEnabled",false) and TVal("ESPWeapon", false)
+    esplib.weapon.fill           = OVal("ESPWeaponColor", Color3.new(1,1,1))
+    esplib.circulartarget.enabled = TVal("ESPEnabled",false) and TVal("ESPCircularTarget", false)
+    esplib.circulartarget.color   = OVal("ESPCircularTargetColor", Color3.fromRGB(255,200,0))
 end
 
 -- =========================================================================
@@ -2783,7 +2792,7 @@ local espCharacters={}
 local function addEspToCharacter(character)
     if not character or espCharacters[character] then return end
     if character == LP.Character then return end
-    
+
     esplib.add_box(character)
     esplib.add_name(character)
     esplib.add_healthbar(character)
@@ -2793,7 +2802,7 @@ local function addEspToCharacter(character)
     esplib.add_skeleton(character, {thickness=2})
     esplib.add_weapon(character)
     esplib.add_circulartarget(character)
-    
+
     espCharacters[character]=true
 end
 
@@ -2811,7 +2820,7 @@ local charactersFolder = Workspace:WaitForChild("Characters", 5)
 
 local function scanCharactersFolder()
     if not charactersFolder then return end
-    
+
     local function processContainer(container)
         for _, child in ipairs(container:GetChildren()) do
             if child:IsA("Model") then
@@ -2822,7 +2831,7 @@ local function scanCharactersFolder()
             end
         end
     end
-    
+
     processContainer(charactersFolder)
 end
 
@@ -2851,7 +2860,8 @@ local function refreshAllCharacters()
 end
 
 local function onChange() updateESPSettings(); refreshAllCharacters() end
-Toggles.ESPEnabled:OnChanged(onChange); Toggles.ESPTeamCheck:OnChanged(onChange)
+Toggles.ESPEnabled:OnChanged(onChange)
+if Toggles.ESPTeamCheck then Toggles.ESPTeamCheck:OnChanged(onChange) end
 Options.ESPBoxType:OnChanged(updateESPSettings)
 Options.ESPBoxColorA:OnChanged(updateESPSettings); Options.ESPBoxColorB:OnChanged(updateESPSettings)
 Toggles.ESPBoxFillGradient:OnChanged(updateESPSettings)
@@ -2900,25 +2910,6 @@ AimbotFovCircle.Thickness = 1
 AimbotFovCircle.Filled = false
 AimbotFovCircle.Visible = false
 
-task.spawn(function()
-    while task.wait(5) do
-        pcall(function()
-            if not SilentFovCircle or not pcall(function() return SilentFovCircle.Visible end) then
-                SilentFovCircle = Drawing.new("Circle")
-                SilentFovCircle.NumSides = 128
-                SilentFovCircle.Thickness = 1
-                SilentFovCircle.Filled = false
-            end
-            if not AimbotFovCircle or not pcall(function() return AimbotFovCircle.Visible end) then
-                AimbotFovCircle = Drawing.new("Circle")
-                AimbotFovCircle.NumSides = 128
-                AimbotFovCircle.Thickness = 1
-                AimbotFovCircle.Filled = false
-            end
-        end)
-    end
-end)
-
 -- =========================================================================
 -- [ 目标系统 ]
 -- =========================================================================
@@ -2957,7 +2948,7 @@ local function isVisible(target)
 end
 
 local function getMemesenseActive()
-    local memesenseActive = Toggles.MemesenseMainToggle and Toggles.MemesenseMainToggle.Value
+    local memesenseActive = TVal("MemesenseMainToggle", false)
     if Options.MemesenseKeybind then
         local kState = Options.MemesenseKeybind:GetState()
         if Options.MemesenseKeybind.Value ~= "None" and Options.MemesenseKeybind.Value ~= "Always" and Options.MemesenseKeybind.Value ~= "Toggle" then
@@ -2988,7 +2979,6 @@ local function FindAllTargets()
     local cDist, cClose = math.huge, nil
     local memesenseActive = getMemesenseActive()
 
-    -- 直接扫描 Workspace.Characters
     local charsFolder = Workspace:FindFirstChild("Characters")
     if not charsFolder then return end
 
@@ -2998,9 +2988,7 @@ local function FindAllTargets()
             local head = obj:FindFirstChild("Head")
             local root = obj:FindFirstChild("HumanoidRootPart")
             if (head or root) and obj ~= lchar then
-                -- 检查是否死亡
-                local isDead = obj:GetAttribute("Dead")
-                    or obj:GetAttribute("Invincible")
+                local isDead = obj:GetAttribute("Dead") or obj:GetAttribute("Invincible")
                 local hp = obj:GetAttribute("Health")
                 if not isDead and (hp == nil or hp > 0) then
                     table.insert(allChars, obj)
@@ -3009,32 +2997,16 @@ local function FindAllTargets()
         end
     end
 
-    -- 通过防弹背心细节判断敌人/盟友
-    local function isEnemy(char)
-        if not char then return false end
-        -- 盟友与LP具有相同的VestDetails状态
-        local myHasVest = hasVestDetails(lchar)
-        local targetHasVest = hasVestDetails(char)
-        if myHasVest then
-            return not targetHasVest  -- 我们有背心 → 敌人没有
-        else
-            return targetHasVest      -- 我们没有背心 → 敌人有
-        end
-    end
-
-    -- Memesense方块目标
     if memesenseActive then
-        local chosenPartName = Options.CubeHitPart.Value or "Head"
+        local chosenPartName = OVal("CubeHitPart", "Head")
 
-        -- 检查锁定目标
         if lockedTargetInstance and lockedTargetInstance.Parent then
             local charModel = lockedTargetInstance.Parent
-            local isDead = charModel:GetAttribute("Dead")
-                or charModel:GetAttribute("Invincible")
+            local isDead = charModel:GetAttribute("Dead") or charModel:GetAttribute("Invincible")
             local hp = charModel:GetAttribute("Health")
             if isDead or (hp and hp <= 0) then
                 lockedTargetInstance = nil
-            elseif Toggles.CubeVisibleCheck and Toggles.CubeVisibleCheck.Value then
+            elseif TVal("CubeVisibleCheck", false) then
                 if not isVisible(lockedTargetInstance) then
                     lockedTargetInstance = nil
                 end
@@ -3051,21 +3023,22 @@ local function FindAllTargets()
         end
 
         for _, char in ipairs(allChars) do
-            if not isEnemy(char) then continue end
-            local targetPart = char:FindFirstChild(chosenPartName)
-                or char:FindFirstChild("Head")
-                or char:FindFirstChild("HumanoidRootPart")
-            if not targetPart then continue end
-
-            local passVis = true
-            if Toggles.CubeVisibleCheck and Toggles.CubeVisibleCheck.Value then
-                if not isVisible(targetPart) then passVis = false end
-            end
-            if passVis then
-                local dist = (camera.CFrame.Position - targetPart.Position).Magnitude
-                if dist < bestDist then
-                    bestDist = dist
-                    bestTarget = targetPart
+            if isEnemy(char) then
+                local targetPart = char:FindFirstChild(chosenPartName)
+                    or char:FindFirstChild("Head")
+                    or char:FindFirstChild("HumanoidRootPart")
+                if targetPart then
+                    local passVis = true
+                    if TVal("CubeVisibleCheck", false) then
+                        if not isVisible(targetPart) then passVis = false end
+                    end
+                    if passVis then
+                        local dist = (camera.CFrame.Position - targetPart.Position).Magnitude
+                        if dist < bestDist then
+                            bestDist = dist
+                            bestTarget = targetPart
+                        end
+                    end
                 end
             end
         end
@@ -3075,57 +3048,54 @@ local function FindAllTargets()
         lockedTargetInstance = nil
     end
 
-    -- 狂暴机器人 + 静默瞄准
     for _, char in ipairs(allChars) do
-        if not isEnemy(char) then continue end
-
-        -- 狂暴机器人
-        if Toggles.Ragebot and Toggles.Ragebot.Value then
-            local rPart = char:FindFirstChild(Options.RageHitPart.Value)
-                or char:FindFirstChild("Head")
-                or char:FindFirstChild("HumanoidRootPart")
-            if rPart then
-                local _, rOnScreen = camera:WorldToViewportPoint(rPart.Position)
-                local alive = true
-                if Toggles.RagebotVisibleCheck and Toggles.RagebotVisibleCheck.Value and not rOnScreen then
-                    alive = false
-                end
-                if alive and Toggles.RagebotWallCheck and Toggles.RagebotWallCheck.Value then
-                    if not isVisible(rPart) then alive = false end
-                end
-                if alive then
-                    local rd = (camera.CFrame.Position - rPart.Position).Magnitude
-                    local p = Players:GetPlayerFromCharacter(char)
-                    if priorityTargetName and p and p.Name == priorityTargetName then
-                        rClose = rPart
-                        rDist  = 0
-                    else
-                        if rd < rDist and rDist > 0 then
-                            rDist  = rd
+        if isEnemy(char) then
+            if TVal("Ragebot", false) then
+                local rPart = char:FindFirstChild(OVal("RageHitPart", "Head"))
+                    or char:FindFirstChild("Head")
+                    or char:FindFirstChild("HumanoidRootPart")
+                if rPart then
+                    local _, rOnScreen = camera:WorldToViewportPoint(rPart.Position)
+                    local alive = true
+                    if TVal("RagebotVisibleCheck", true) and not rOnScreen then
+                        alive = false
+                    end
+                    if alive and TVal("RagebotWallCheck", false) then
+                        if not isVisible(rPart) then alive = false end
+                    end
+                    if alive then
+                        local rd = (camera.CFrame.Position - rPart.Position).Magnitude
+                        local p = Players:GetPlayerFromCharacter(char)
+                        if priorityTargetName and p and p.Name == priorityTargetName then
                             rClose = rPart
+                            rDist  = 0
+                        else
+                            if rd < rDist and rDist > 0 then
+                                rDist  = rd
+                                rClose = rPart
+                            end
                         end
                     end
                 end
             end
-        end
 
-        -- 静默瞄准
-        if Toggles.SilentAim and Toggles.SilentAim.Value then
-            local silentPartName = Options.SilentHitPart and Options.SilentHitPart.Value or "Head"
-            local sPart = char:FindFirstChild(silentPartName)
-                or char:FindFirstChild("Head")
-                or char:FindFirstChild("HumanoidRootPart")
-            if sPart then
-                local sScreenPos, sOnScreen = camera:WorldToViewportPoint(sPart.Position)
-                if sOnScreen then
-                    local sd = (Vector2.new(sScreenPos.X, sScreenPos.Y) - screenCenter).Magnitude
-                    local maxRadius = (Toggles.SilentUseFovCircle and Toggles.SilentUseFovCircle.Value)
-                        and (Options.SilentFovCircleRadius and Options.SilentFovCircleRadius.Value or 50)
-                        or 999999
-                    if sd <= maxRadius then
-                        local wallOk = (Toggles.SilentWallbang and Toggles.SilentWallbang.Value) or isVisible(sPart)
-                        if wallOk and sd < sDist then
-                            sDist = sd; sClose = sPart
+            if TVal("SilentAim", false) then
+                local silentPartName = OVal("SilentHitPart", "Head")
+                local sPart = char:FindFirstChild(silentPartName)
+                    or char:FindFirstChild("Head")
+                    or char:FindFirstChild("HumanoidRootPart")
+                if sPart then
+                    local sScreenPos, sOnScreen = camera:WorldToViewportPoint(sPart.Position)
+                    if sOnScreen then
+                        local sd = (Vector2.new(sScreenPos.X, sScreenPos.Y) - screenCenter).Magnitude
+                        local maxRadius = TVal("SilentUseFovCircle", false)
+                            and OVal("SilentFovCircleRadius", 50)
+                            or 999999
+                        if sd <= maxRadius then
+                            local wallOk = TVal("SilentWallbang", false) or isVisible(sPart)
+                            if wallOk and sd < sDist then
+                                sDist = sd; sClose = sPart
+                            end
                         end
                     end
                 end
@@ -3137,6 +3107,7 @@ local function FindAllTargets()
     RageTarget      = rClose
     CubeSmartTarget = cClose
 end
+
 -- =========================================================================
 -- [ 显示目标系统 ]
 -- =========================================================================
@@ -3159,12 +3130,12 @@ RunService.RenderStepped:Connect(function()
     pcall(function()
         local cam = Workspace.CurrentCamera
         local memesenseActive = getMemesenseActive()
-        local showTargetEnabled = memesenseActive and (Toggles.ShowTargetPlayer and Toggles.ShowTargetPlayer.Value)
-        local targetMode = Options.ShowTargetMode and Options.ShowTargetMode.Value or "准星"
+        local showTargetEnabled = memesenseActive and TVal("ShowTargetPlayer", false)
+        local targetMode = OVal("ShowTargetMode", "准星")
         local absoluteClosestPart = nil
         local minAbsoluteDist = math.huge
         local myTeam = get_player_team(LP)
-        local chosenPartName = Options.CubeHitPart and Options.CubeHitPart.Value or "Head"
+        local chosenPartName = OVal("CubeHitPart", "Head")
 
         if showTargetEnabled then
             for _, v in ipairs(Players:GetPlayers()) do
@@ -3200,7 +3171,7 @@ RunService.RenderStepped:Connect(function()
             local currentTick = tick()
 
             if targetMode == "准星" then
-                local crossCol = Options.ShowTargetCrosshairColor and Options.ShowTargetCrosshairColor.Value or Color3.fromRGB(0, 255, 255)
+                local crossCol = OVal("ShowTargetCrosshairColor", Color3.fromRGB(0, 255, 255))
                 local pulseFactor = 1 + 0.3 * math.sin(currentTick * math.pi * 2)
                 local baseSize = 16 * pulseFactor
                 local gap = 5 * pulseFactor
@@ -3219,7 +3190,7 @@ RunService.RenderStepped:Connect(function()
                 end
                 crosshairVisible = true
             elseif targetMode == "线条" then
-                local lineCol = Options.ShowTargetLineColor and Options.ShowTargetLineColor.Value or Color3.fromRGB(0, 255, 255)
+                local lineCol = OVal("ShowTargetLineColor", Color3.fromRGB(0, 255, 255))
                 local viewportCenter = cam.ViewportSize / 2
                 ShowTargetConnectorLine.From = viewportCenter
                 ShowTargetConnectorLine.To = center
@@ -3240,10 +3211,6 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
--- =========================================================================
--- [ 主渲染循环 ]
--- =========================================================================
-
 RunService.RenderStepped:Connect(function()
     frameCounter = frameCounter + 1
     local cam = Workspace.CurrentCamera
@@ -3251,13 +3218,9 @@ RunService.RenderStepped:Connect(function()
 
     pcall(function()
         SilentFovCircle.Position = viewportCenter
-        SilentFovCircle.Radius = Options.SilentFovCircleRadius and Options.SilentFovCircleRadius.Value or 50
-        SilentFovCircle.Color = Options.SilentFovColor and Options.SilentFovColor.Value or Color3.fromRGB(255, 0, 0)
-        SilentFovCircle.Visible = Toggles.SilentAim and Toggles.SilentAim.Value and Toggles.SilentUseFovCircle and Toggles.SilentUseFovCircle.Value
-        AimbotFovCircle.Position = viewportCenter
-        AimbotFovCircle.Radius = Options.AimbotFovCircleRadius and Options.AimbotFovCircleRadius.Value or 50
-        AimbotFovCircle.Color = Options.AimbotFovColor and Options.AimbotFovColor.Value or Color3.fromRGB(0, 255, 0)
-        AimbotFovCircle.Visible = Toggles.Aimbot and Toggles.Aimbot.Value and Toggles.AimbotUseFovCircle and Toggles.AimbotUseFovCircle.Value
+        SilentFovCircle.Radius = OVal("SilentFovCircleRadius", 50)
+        SilentFovCircle.Color = OVal("SilentFovColor", Color3.fromRGB(255, 0, 0))
+        SilentFovCircle.Visible = TVal("SilentAim", false) and TVal("SilentUseFovCircle", false)
     end)
 
     if frameCounter % 2 == 0 then FindAllTargets() end
@@ -3307,17 +3270,17 @@ RunService.RenderStepped:Connect(function()
         local cam = Workspace.CurrentCamera
         if not cam then return end
         local memesenseActive = getMemesenseActive()
-        local enabled = memesenseActive and (Toggles.BulletImpactV1Enabled and Toggles.BulletImpactV1Enabled.Value)
+        local enabled = memesenseActive and TVal("BulletImpactV1Enabled", false)
         BulletImpactV1Part.Parent = enabled and Workspace or nil
 
         if enabled then
-            local sizeVal = Options.BulletImpactV1Size and Options.BulletImpactV1Size.Value or 1.5
-            local maxDist = Options.BulletImpactV1Dist and Options.BulletImpactV1Dist.Value or 20
+            local sizeVal = OVal("BulletImpactV1Size", 1.5)
+            local maxDist = OVal("BulletImpactV1Dist", 20)
             BulletImpactV1Part.Size = Vector3.new(sizeVal, sizeVal, 0.01)
 
-            local userColor = Options.BulletImpactV1Color and Options.BulletImpactV1Color.Value or Color3.fromRGB(255, 0, 0)
+            local userColor = OVal("BulletImpactV1Color", Color3.fromRGB(255, 0, 0))
 
-            if Toggles.BulletImpactV1Rainbow and Toggles.BulletImpactV1Rainbow.Value then
+            if TVal("BulletImpactV1Rainbow", false) then
                 local hue = (tick() % 5) / 5
                 userColor = Color3.fromHSV(hue, 1, 1)
             end
@@ -3330,7 +3293,7 @@ RunService.RenderStepped:Connect(function()
             if result then
                 BulletImpactV1Part.Parent = Workspace
                 BulletImpactV1Part.CFrame = CFrame.lookAt(result.Position + (result.Normal * 0.02), result.Position + result.Normal)
-                if CubeSmartTarget and memesenseActive and Toggles.CubeAimbotEnabled.Value then
+                if CubeSmartTarget and memesenseActive and TVal("CubeAimbotEnabled", false) then
                     BulletImpactV1Part.Color = Color3.fromRGB(0, 255, 0)
                     selectionBox.Color3 = Color3.fromRGB(0, 255, 0)
                 else
@@ -3344,18 +3307,9 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
-         -- ╔══════════════════════════════════════════════════════╗
--- ║         手雷区域ESP  –  圆形版本 v4                  ║
--- ║  圆柱体轮廓，地形贴合，平滑淡出                      ║
--- ║  颜色与UI颜色选择器实时同步                          ║
--- ║  + 手雷图标 + 计时环                                 ║
--- ╚══════════════════════════════════════════════════════╝
-
-if _G.BS_CircleZoneLoaded then
-    warn("[区域ESP] 已在运行，跳过重复注入。")
-    return
-end
-_G.BS_CircleZoneLoaded = true
+-- =========================================================================
+-- [ 手雷区域ESP - 圆形版本 v4 ]
+-- =========================================================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(1)
@@ -3371,23 +3325,9 @@ cfgDefault("ColoredSmoke",   false)
 cfgDefault("NoSmoke",        false)
 cfgDefault("SmokeColor",     Color3.fromRGB(255, 0, 0))
 
--- ═══════════════════════════════════════════════════════
---  ★  设置  ★
--- ═══════════════════════════════════════════════════════
-
 local SETTINGS = {
-    Smoke = {
-        RadiusTrim   = 0.0,
-        HeightOffset = 0.3,
-        Segments     = 40,
-        Thickness    = 0.28,
-    },
-    Molotov = {
-        RadiusTrim   = 4.5,
-        HeightOffset = 0.3,
-        Segments     = 40,
-        Thickness    = 0.28,
-    },
+    Smoke = { RadiusTrim = 0.0, HeightOffset = 0.3, Segments = 40, Thickness = 0.28 },
+    Molotov = { RadiusTrim = 4.5, HeightOffset = 0.3, Segments = 40, Thickness = 0.28 },
 }
 
 local FADE_IN_TIME    = 0.4
@@ -3395,25 +3335,10 @@ local FADE_OUT_TIME   = 0.6
 local RECALC_INTERVAL = 0.05
 local RAYCAST_DOWN    = 14
 
-local function GetMolotovColor()
-    if Options and Options.GrenadeZoneColor then
-        return Options.GrenadeZoneColor.Value
-    end
-    return Color3.fromRGB(255, 60, 0)
-end
-
-local function GetSmokeColor()
-    if Options and Options.SmokeZoneColor then
-        return Options.SmokeZoneColor.Value
-    end
-    return Color3.fromRGB(180, 180, 180)
-end
-
-local RunService = game:GetService("RunService")
-local Camera     = workspace.CurrentCamera
+local function GetMolotovColor() return OVal("GrenadeZoneColor", Color3.fromRGB(255, 60, 0)) end
+local function GetSmokeColor() return OVal("SmokeZoneColor", Color3.fromRGB(180, 180, 180)) end
 
 local ActiveZones       = {}
-local DebrisConnections = {}
 
 local RayParams = RaycastParams.new()
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -3582,23 +3507,18 @@ local function CreateZoneRing(parent, cfg, isMolotov)
             local mid  = Vector3.new(xM, yM, zM)
             local dir  = posB - posA
             local len  = dir.Magnitude
-            if len < 0.001 then continue end
-
-            local cf = CFrame.lookAt(mid, mid + dir) * CFrame.Angles(0, math.rad(90), 0)
-
-            cyl.CFrame       = cf
-            cyl.Size         = Vector3.new(len, thickness, thickness)
-            cyl.Color        = col
-            cyl.Transparency = transp
+            if len >= 0.001 then
+                local cf = CFrame.lookAt(mid, mid + dir) * CFrame.Angles(0, math.rad(90), 0)
+                cyl.CFrame       = cf
+                cyl.Size         = Vector3.new(len, thickness, thickness)
+                cyl.Color        = col
+                cyl.Transparency = transp
+            end
         end
     end)
 
     record.updateConn = updateConn
 end
-
--- =========================================================================
--- [ 手雷区域扫描器 ]
--- =========================================================================
 
 local function IsToggleOn(name)
     if Toggles and Toggles[name] then return Toggles[name].Value end
@@ -3690,47 +3610,6 @@ task.spawn(function()
     end
 end)
 
-local function VisualizeShrapnel(pos)
-    if not _G.Config.GrenadeTracers then return end
-    local lines = {}
-    for i = 1, 16 do
-        local line = Drawing.new("Line")
-        line.Visible = true
-        line.Color = Color3.fromRGB(255,100,0)
-        line.Thickness = 2
-        line.Transparency = 1
-        local dir = Vector3.new(math.random()*2-1,math.random()*2-1,math.random()*2-1).Unit
-        table.insert(lines, {obj=line, dir=dir})
-    end
-    task.spawn(function()
-        local Cam = workspace.CurrentCamera
-        local s = tick()
-        local conn
-        conn = RunService.RenderStepped:Connect(function()
-            local t = tick()-s
-            if t > 0.8 then
-                conn:Disconnect()
-                for _,l in ipairs(lines) do l.obj:Remove() end
-                return
-            end
-            local a = math.clamp(t/0.8,0,1)
-            local e = (1-(1-a)^2)*12
-            for _,l in ipairs(lines) do
-                local wS = pos+l.dir*(e*0.2)
-                local wE = pos+l.dir*e
-                local sS,o1 = Cam:WorldToViewportPoint(wS)
-                local sE,o2 = Cam:WorldToViewportPoint(wE)
-                l.obj.Visible = o1 or o2
-                if l.obj.Visible then
-                    l.obj.From = Vector2.new(sS.X,sS.Y)
-                    l.obj.To   = Vector2.new(sE.X,sE.Y)
-                    l.obj.Transparency = 1-a
-                end
-            end
-        end)
-    end)
-end
-
 -- =========================================================================
 -- [ 手雷飞行追踪 ]
 -- =========================================================================
@@ -3757,15 +3636,12 @@ local function StartGrenadeFlightTracer(part)
 
     local conn
     conn = RunService.RenderStepped:Connect(function()
-        local enabled = Toggles and Toggles.GrenadeTracers and Toggles.GrenadeTracers.Value
-        local col = Options and Options.GrenadeTracerColor and Options.GrenadeTracerColor.Value or Color3.fromRGB(255, 100, 0)
+        local enabled = TVal("GrenadeTracers", false)
+        local col = OVal("GrenadeTracerColor", Color3.fromRGB(255, 100, 0))
 
         if not part or not part.Parent then
             conn:Disconnect()
             GrenadeFlightTracers[part] = nil
-            if #history > 0 then
-                VisualizeShrapnel(history[1])
-            end
             for _, l in ipairs(lines) do
                 pcall(function() l:Remove() end)
             end
@@ -3787,28 +3663,24 @@ local function StartGrenadeFlightTracer(part)
             local p2 = history[i + 1]
             if not p1 or not p2 then
                 l.Visible = false
-                continue
-            end
-            local s1, o1 = cam:WorldToViewportPoint(p1)
-            local s2, o2 = cam:WorldToViewportPoint(p2)
-            if (o1 or o2) and s1.Z > 0 and s2.Z > 0 then
-                local fade = 1 - (i / MAX_TRAIL)
-                l.From      = Vector2.new(s1.X, s1.Y)
-                l.To        = Vector2.new(s2.X, s2.Y)
-                l.Color     = col
-                l.Thickness = math.max(2 * fade, 0.5)
-                l.Transparency = 1 - fade
-                l.Visible   = true
             else
-                l.Visible = false
+                local s1, o1 = cam:WorldToViewportPoint(p1)
+                local s2, o2 = cam:WorldToViewportPoint(p2)
+                if (o1 or o2) and s1.Z > 0 and s2.Z > 0 then
+                    local fade = 1 - (i / MAX_TRAIL)
+                    l.From      = Vector2.new(s1.X, s1.Y)
+                    l.To        = Vector2.new(s2.X, s2.Y)
+                    l.Color     = col
+                    l.Thickness = math.max(2 * fade, 0.5)
+                    l.Transparency = 1 - fade
+                    l.Visible   = true
+                else
+                    l.Visible = false
+                end
             end
         end
     end)
 end
-
--- =========================================================================
--- [ 飞行手雷检测器 ]
--- =========================================================================
 
 local TrackedGrenades = {}
 
@@ -3911,7 +3783,7 @@ task.spawn(function()
 end)
 
 -- =========================================================================
--- [ Chams V3 — 防弹背心细节队伍检查 + 可见/不可见高亮 ]
+-- [ Chams V3 - 防弹背心细节队伍检查 + 可见/不可见高亮 ]
 -- =========================================================================
 
 task.spawn(function()
@@ -3977,10 +3849,10 @@ task.spawn(function()
         Rounding = 2,
     })
 
-    local Players   = game:GetService("Players")
-    local RunService= game:GetService("RunService")
-    local Workspace = game:GetService("Workspace")
-    local LP        = Players.LocalPlayer
+    local PlayersS   = game:GetService("Players")
+    local RunServiceS= game:GetService("RunService")
+    local WorkspaceS = game:GetService("Workspace")
+    local LPS        = PlayersS.LocalPlayer
 
     local ESPFolder
     pcall(function()
@@ -4016,7 +3888,7 @@ task.spawn(function()
         end
     end
 
-    local function hasVestDetails(char)
+    local function hasVestDetailsC(char)
         if not char then return false end
         local armor = char:FindFirstChild("CharacterArmor")
         if armor then
@@ -4027,57 +3899,58 @@ task.spawn(function()
 
     local function isTeammate(char)
         if not char then return false end
-        local myChar = LP.Character
+        local myChar = LPS.Character
         if not myChar then return false end
-        local myHasVest  = hasVestDetails(myChar)
-        local hisHasVest = hasVestDetails(char)
+        local myHasVest  = hasVestDetailsC(myChar)
+        local hisHasVest = hasVestDetailsC(char)
         return myHasVest == hisHasVest
     end
 
-    local RayParams = RaycastParams.new()
-    RayParams.FilterType = Enum.RaycastFilterType.Exclude
+    local RayParamsC = RaycastParams.new()
+    RayParamsC.FilterType = Enum.RaycastFilterType.Exclude
 
-    local function isVisible(char)
+    local function isVisibleC(char)
         local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
         if not root then return false end
-        local camPos = Workspace.CurrentCamera.CFrame.Position
+        local camPos = WorkspaceS.CurrentCamera.CFrame.Position
         local dir    = root.Position - camPos
-        RayParams.FilterDescendantsInstances = {LP.Character, char}
-        local result = Workspace:Raycast(camPos, dir, RayParams)
+        RayParamsC.FilterDescendantsInstances = {LPS.Character, char}
+        local result = WorkspaceS:Raycast(camPos, dir, RayParamsC)
         return result == nil
     end
 
-    RunService.RenderStepped:Connect(function()
-        local enabled     = Toggles.ChamsEnabled   and Toggles.ChamsEnabled.Value
-        local teamCheckOn = Toggles.ChamsTeamCheck and Toggles.ChamsTeamCheck.Value
+    RunServiceS.RenderStepped:Connect(function()
+        local enabled     = TVal("ChamsEnabled", false)
+        local teamCheckOn = TVal("ChamsTeamCheck", true)
 
-        local matVisible   = getMaterial(Options.ChamsMaterialVisible   and Options.ChamsMaterialVisible.Value   or "霓虹")
-        local matUnvisible = getMaterial(Options.ChamsMaterialUnvisible and Options.ChamsMaterialUnvisible.Value or "金属")
-        local colVisible   = Options.ChamsColorVisible   and Options.ChamsColorVisible.Value   or Color3.fromRGB(0,200,0)
-        local colUnvisible = Options.ChamsColorUnvisible and Options.ChamsColorUnvisible.Value or Color3.fromRGB(200,0,0)
+        local matVisible   = getMaterial(OVal("ChamsMaterialVisible", "霓虹"))
+        local matUnvisible = getMaterial(OVal("ChamsMaterialUnvisible", "金属"))
+        local colVisible   = OVal("ChamsColorVisible", Color3.fromRGB(0,200,0))
+        local colUnvisible = OVal("ChamsColorUnvisible", Color3.fromRGB(200,0,0))
 
-        local fillAlphaVis    = Options.ChamsAlphaVisible         and Options.ChamsAlphaVisible.Value         or 0.3
-        local fillAlphaUnvis  = Options.ChamsAlphaUnvisible       and Options.ChamsAlphaUnvisible.Value       or 0.3
-        local outAlphaVis     = Options.ChamsOutlineAlphaVisible   and Options.ChamsOutlineAlphaVisible.Value   or 0
-        local outAlphaUnvis   = Options.ChamsOutlineAlphaUnvisible and Options.ChamsOutlineAlphaUnvisible.Value or 0
+        local fillAlphaVis    = OVal("ChamsAlphaVisible", 0.3)
+        local fillAlphaUnvis  = OVal("ChamsAlphaUnvisible", 0.3)
+        local outAlphaVis     = OVal("ChamsOutlineAlphaVisible", 0)
+        local outAlphaUnvis   = OVal("ChamsOutlineAlphaUnvisible", 0)
 
-        local charactersFolder = Workspace:FindFirstChild("Characters")
-        if not charactersFolder then return end
+        local charactersFolderC = WorkspaceS:FindFirstChild("Characters")
+        if not charactersFolderC then return end
 
         local enemyChars = {}
-        for _, obj in ipairs(charactersFolder:GetDescendants()) do
+        for _, obj in ipairs(charactersFolderC:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
                 local char = obj
-                if char == LP.Character then continue end
-                if teamCheckOn and isTeammate(char) then
-                    removeChams(char)
-                    continue
+                local skip = false
+                if char == LPS.Character then skip = true end
+                if not skip and teamCheckOn and isTeammate(char) then
+                    removeChams(char); skip = true
                 end
-                if not enabled then
-                    removeChams(char)
-                    continue
+                if not skip and not enabled then
+                    removeChams(char); skip = true
                 end
-                table.insert(enemyChars, char)
+                if not skip then
+                    table.insert(enemyChars, char)
+                end
             end
         end
 
@@ -4099,7 +3972,7 @@ task.spawn(function()
             end
 
             local hl  = Highlights[char]
-            local seen = isVisible(char)
+            local seen = isVisibleC(char)
 
             hl.visible.Adornee            = char
             hl.visible.FillColor          = colVisible
@@ -4140,7 +4013,7 @@ task.spawn(function()
         end
     end)
 
-    Players.PlayerRemoving:Connect(function(player)
+    PlayersS.PlayerRemoving:Connect(function(player)
         if player.Character then
             removeChams(player.Character)
         end
@@ -4171,7 +4044,11 @@ task.spawn(function()
 
     local function getWeaponObjectSafe()
         local ok, IC = pcall(function()
-            return require(game:GetService("ReplicatedStorage").Controllers.InventoryController)
+            local C = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers")
+            if not C then return nil end
+            local M = C:FindFirstChild("InventoryController")
+            if not M then return nil end
+            return require(M)
         end)
         if not ok or not IC then return nil end
         return IC.peekCurrentEquippedForMovement and IC.peekCurrentEquippedForMovement() or nil
@@ -4188,7 +4065,7 @@ task.spawn(function()
                 if track and RELOAD_ANIMS[animName] then
                     task.defer(function()
                         pcall(function()
-                            if Toggles.InstantReload and Toggles.InstantReload.Value then
+                            if TVal("InstantReload", false) then
                                 if track.IsPlaying then
                                     track:AdjustSpeed(RELOAD_SPEED)
                                 end
@@ -4219,7 +4096,7 @@ task.spawn(function()
                     end
                 end
 
-                if not (Toggles.InstantReload and Toggles.InstantReload.Value) then return end
+                if not TVal("InstantReload", false) then return end
 
                 if weapon.IsReloading then
                     pcall(function()
@@ -4244,7 +4121,11 @@ task.spawn(function()
     end)
 
     pcall(function()
-        local IC = require(game:GetService("ReplicatedStorage").Controllers.InventoryController)
+        local C = game:GetService("ReplicatedStorage"):FindFirstChild("Controllers")
+        if not C then return end
+        local M = C:FindFirstChild("InventoryController")
+        if not M then return end
+        local IC = require(M)
         if IC.OnInventoryItemEquipped then
             IC.OnInventoryItemEquipped:Connect(function(_, weapon)
                 if not weapon then return end
@@ -4285,5 +4166,5 @@ ThemeManager:ApplyToTab(Tabs.Settings)
 SaveManager:LoadAutoloadConfig()
 
 -- =========================================================================
--- [ MEMESENSE 完整构建结束 ]
+-- [ MEMESENSE 完整构建结束 - 修复版 ]
 -- =========================================================================
