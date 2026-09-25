@@ -1,0 +1,1148 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+if playerGui:FindFirstChild("IslandUI") then
+    playerGui.IslandUI:Destroy()
+end
+if SoundService:FindFirstChild("IslandMusic") then
+    SoundService.IslandMusic:Destroy()
+end
+
+-- ============ 播放器 ============
+local musicSound = Instance.new("Sound")
+musicSound.Name = "IslandMusic"
+musicSound.Volume = 0.5
+musicSound.Parent = SoundService
+
+-- ============ 歌曲列表 ============
+local songList = {
+    {"74173898692517","唐人"},{"82736875196779","牵丝戏"},{"75361870687357","辞九门"},
+    {"132524361907107","把回忆"},{"102072818475050","李昊"},{"79277371759525","雨爱"},
+    {"78963341533467","雨泪"},{"88304207692432","武家坡"},{"103206233912047","你好知道犯什么"},
+    {"109693244185458","1Q00"},{"114372452919028","山楂树"},{"89795630567186","陈浩南"},
+    {"100856301638837","落泪"},{"117225633780122","海底"},{"110803009828636","张信哲"},
+    {"83422989427201","错位时空"},{"111568038897020","求佛"},{"80487039269735","悠闲"},
+    {"124044109756641","精卫"},{"111027647468458","迷人的危险"},{"120145064597801","安和桥"},
+    {"78626388620444","做事要讲良心"},{"126922220277198","redeye"},{"118896961448948","后继者"},
+    {"107341259483191","lovestory"},{"96590819329722","会呼吸的痛"},{"125615482496831","青衣"},
+    {"114476517052805","铡美案"},{"138765729162919","蜜雪"},{"128967751535556","nig"},
+    {"84348087757554","嘉豪"},{"113879832755091","大运"},{"113665010217108","鸟之诗"},
+    {"78707318606182","大江大海"},{"79122285852432","朋友的酒"},{"81381619096029","小幸运"},
+    {"116497979556639","不得不爱"},{"112341295870756","印度"},{"117642670292492","我也不知道"},
+    {"104923055259541","你最近过的还好吗"},{"118957335322667","共和时代"},{"135894830596180","alone"},
+    {"102757438805863","骷髅"},{"2138529498012691","豪大大"},{"119341948158777","芒种"},
+    {"110094177703357","演员"},{"106036175444448","红昭愿"},{"129089071772937","桃花诺"},
+    {"81179274770282","燕无歇"},{"93310151880263","出山"},{"112834898401032","离开我的依赖"},
+    {"121374695318782","彩虹小白马"},{"93898237895661","得吃"},{"96144381780240","拼好歌"},
+    {"99498025749186","起风了"},{"115023114157591","辞九门2"},{"132049153370517","莫问归期"},
+    {"82518513365412","川普"},{"1845918435","国歌"},{"1840297174","國歌"},
+    {"124597524602869","进步"},{"132772094469180","游京"},{"103001052289903","伤感"},
+    {"3068736836","教員"},{"121336636707861","豪庭"},{"115262512648819","漂移"},
+    {"99519218846428","科比"},{"130437050908450","氛围"},{"138570939058838","唯一"},
+    {"134786908423441","大东北"},{"124523430035974","山歌"},{"5409360995","新新"},
+    {"3033155249","悠闲2"},{"135324082524426","兰亭序"},{"126954452322127","军中绿花"},
+    {"89711807693889","进击巨人"},{"91550314012338","奈克赛斯"},{"93995930463751","瞬DJ"},
+    {"82485901858938","小半"},{"79952652433579","父亲"},{"74180922359181","啊米诺丝"},
+    {"136536224579450","冲刺"},{"80701295792893","乌鲁鲁"},{"131309848078328","buibuibui"},
+    {"99960601736776","鸳鸯戏"},{"98850529016454","坠落"},{"87859225614251","瓦瓦"},
+    {"121832229737638","猪妞"},{"95489036869789","馕馕馕"},{"88457346646245","福瑞"},
+    {"102862957328067","拜刀马"},{"124384558101360","辞九门回忆"},{"82152175089703","单吃蛋"},
+    {"132913406368504","酒驾驾"},{"122569721737706","哈喽大家好"},{"111431923179857","我拿那个小刀"},
+    {"132218995427356","浴室"},{"7418628592","cnm"},{"122407020110484","爱情讯息DJ"},
+    {"133260572775867","萝莉进行曲"},{"111647270157086","中长跑进行曲"},{"139960831487271","晚安布布"},
+    {"72230346939164","库里之歌"},{"140648740956700","苦茶子"},{"128815249670543","大哥小曲"},
+    {"109138957141221","情绪回收站"},{"87918578744719","大悲咒哈基米"},{"96491894597654","灵感菇菇菇"},
+    {"110019502835548","donk哈基米"},{"78472074436234","太空曼波"},{"80712503354465","地狱列车"},
+    {"95969253144150","青衣Dj"},{"8449305114","嘲笑"},{"8324338507","钢管落地"},
+    {"115734731038400","救救我"},{"137981831377836","我的假牙"},{"140248480403863","moon"},
+    {"131649148795563","不值得Dj"},{"74085216274793","寂寞"},{"130426362745916","难得真兄弟"},
+    {"81137321144573","中长跑九万字"},{"126774078187195","关注塔菲谢谢喵"},{"105743569519803","休闲"},
+    {"74941412980904","森林"},{"1845962816","新年"},{"119719716898695","心做dj"},
+    {"84177223761751","原神丘丘谣"},{"82696338249251","横冲直撞"},{"94624102598882","和平精英死亡"},
+    {"110788401793874","oioi"},{"7801102946","大河之剑"},{"7334239757","你咋这么自私"},
+    {"7309537814","你是故意找茬"},{"129921580107843","童话镇"},{"116016960263535","器张"},
+    {"109386756896813","不得不"},{"110807176141277","欢乐颂"},
+}
+
+-- ============ 服务器脚本列表 ============
+local serverList = {
+    {"最坚强的战场", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E6%9C%80%E5%9D%9A%E5%BC%BA"},
+    {"TTK枪战服务器", "https://raw.githubusercontent.com/runyangtang3-ui/jjb/refs/heads/main/TT%E6%B5%8B%E8%AF%95.lua"},
+    {"CS go", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E5%A4%A9%E7%BD%A1.lua"},
+    {"CS go无后座无UI", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/csgo.lua"},
+    {"CS go（nb 脚本）", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/csgonb%E8%84%9A%E6%9C%AC"},
+    {"狙击竞技场", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E7%8B%99%E5%87%BB%E7%AB%9E%E6%8A%80%E5%9C%BA.lua"},
+    {"神奇一击无冷却", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/%E7%A5%9E%E5%A5%87.lua"},
+    {"幸运方块乱斗", "https://raw.githubusercontent.com/runyangtang3-ui/jjb/refs/heads/main/%E5%B9%B8%E8%BF%90%E6%96%B9%E5%9D%97%E4%B9%B1%E6%96%97"},
+    {"地下城重生", "https://api.luarmor.net/files/v4/loaders/3dbb5ee5caaf644d2fc9baec2b2fec82.lua"},
+    {"采集一座山", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/%E6%B1%89%E5%8C%96%E7%89%88%E5%BC%80%E5%B1%B1.lua"},
+    {"重型钓鱼", "https://raw.githubusercontent.com/runyangtang3-ui/jjb/refs/heads/main/%E9%87%8D%E5%9E%8B%E9%92%93%E9%B1%BC.lua"},
+    {"死铁轨", "https://raw.githubusercontent.com/runyangtang3-ui/jjb/refs/heads/main/%E6%AD%BB%E4%BA%A1%E8%BD%A8%E8%BF%B9.lua"},
+}
+
+-- ============ ScreenGui ============
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "IslandUI"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 2147483647
+screenGui.Parent = playerGui
+
+-- ============ 点击外部关闭的遮挡层 ============
+local outsideClicker = Instance.new("TextButton")
+outsideClicker.Name = "OutsideClicker"
+outsideClicker.Size = UDim2.new(1, 0, 1, 0)
+outsideClicker.Position = UDim2.new(0, 0, 0, 0)
+outsideClicker.BackgroundTransparency = 1
+outsideClicker.Text = ""
+outsideClicker.AutoButtonColor = false
+outsideClicker.ZIndex = 4
+outsideClicker.Visible = false
+outsideClicker.Parent = screenGui
+
+-- ============ 阴影 ============
+local shadow = Instance.new("Frame")
+shadow.Name = "Shadow"
+shadow.Size = UDim2.new(0, 200, 0, 46)
+shadow.Position = UDim2.new(0.5, -100, 0, 12)
+shadow.BackgroundTransparency = 1
+shadow.BorderSizePixel = 0
+shadow.Parent = screenGui
+
+for i = 1, 3 do
+    local s = Instance.new("Frame")
+    s.Name = "Shadow" .. i
+    s.Size = UDim2.new(1, 0, 1, 0)
+    s.Position = UDim2.new(0, 0, 0, 9 - i * 2)
+    s.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    s.BackgroundTransparency = 0.5 + i * 0.1
+    s.BorderSizePixel = 0
+    s.ZIndex = i
+    s.Parent = shadow
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = s
+end
+
+-- ============ 主体 ============
+local island = Instance.new("Frame")
+island.Name = "DynamicIsland"
+island.Size = UDim2.new(1, 0, 1, 0)
+island.BackgroundColor3 = Color3.fromRGB(10, 14, 35)
+island.BorderSizePixel = 0
+island.ClipsDescendants = true
+island.ZIndex = 5
+island.Parent = shadow
+
+local islandCorner = Instance.new("UICorner")
+islandCorner.CornerRadius = UDim.new(1, 0)
+islandCorner.Parent = island
+
+local mainGrad = Instance.new("UIGradient")
+mainGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 32, 75)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 20, 50)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 8, 20)),
+})
+mainGrad.Rotation = 135
+mainGrad.Parent = island
+
+local edge1 = Instance.new("UIStroke")
+edge1.Thickness = 1
+edge1.Color = Color3.fromRGB(120, 160, 255)
+edge1.Transparency = 0.4
+edge1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+edge1.Parent = island
+
+-- ============ 光晕 ============
+local glow1 = Instance.new("Frame")
+glow1.Size = UDim2.new(0, 150, 0, 150)
+glow1.Position = UDim2.new(-0.3, 0, -0.3, 0)
+glow1.BackgroundColor3 = Color3.fromRGB(80, 100, 255)
+glow1.BackgroundTransparency = 0.85
+glow1.BorderSizePixel = 0
+glow1.ZIndex = 4
+glow1.Parent = island
+local g1c = Instance.new("UICorner")
+g1c.CornerRadius = UDim.new(1, 0)
+g1c.Parent = glow1
+
+local glow2 = Instance.new("Frame")
+glow2.Size = UDim2.new(0, 130, 0, 130)
+glow2.Position = UDim2.new(1, -60, 1, -60)
+glow2.BackgroundColor3 = Color3.fromRGB(255, 100, 200)
+glow2.BackgroundTransparency = 0.85
+glow2.BorderSizePixel = 0
+glow2.ZIndex = 4
+glow2.Parent = island
+local g2c = Instance.new("UICorner")
+g2c.CornerRadius = UDim.new(1, 0)
+g2c.Parent = glow2
+
+task.spawn(function()
+    while glow1.Parent do
+        TweenService:Create(glow1, TweenInfo.new(5, Enum.EasingStyle.Sine), {
+            Position = UDim2.new(1, -70, -0.2, 0)
+        }):Play()
+        task.wait(5)
+        TweenService:Create(glow1, TweenInfo.new(5, Enum.EasingStyle.Sine), {
+            Position = UDim2.new(-0.3, 0, 1, -60)
+        }):Play()
+        task.wait(5)
+    end
+end)
+
+task.spawn(function()
+    while glow2.Parent do
+        TweenService:Create(glow2, TweenInfo.new(6, Enum.EasingStyle.Sine), {
+            Position = UDim2.new(-0.2, 0, 0, 0)
+        }):Play()
+        task.wait(6)
+        TweenService:Create(glow2, TweenInfo.new(6, Enum.EasingStyle.Sine), {
+            Position = UDim2.new(1, -60, 1, -60)
+        }):Play()
+        task.wait(6)
+    end
+end)
+
+-- ============ 星星 ============
+local starContainer = Instance.new("Frame")
+starContainer.Size = UDim2.new(1, 0, 1, 0)
+starContainer.BackgroundTransparency = 1
+starContainer.ClipsDescendants = true
+starContainer.ZIndex = 6
+starContainer.Parent = island
+
+for i = 1, 25 do
+    local star = Instance.new("Frame")
+    star.Size = UDim2.new(0, 2, 0, 2)
+    star.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    star.BackgroundColor3 = Color3.new(1, 1, 1)
+    star.BackgroundTransparency = math.random(30, 70) / 100
+    star.BorderSizePixel = 0
+    star.ZIndex = 6
+    star.Parent = starContainer
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = star
+end
+
+-- ============ 彩色流星 ============
+local meteorColors = {
+    Color3.fromRGB(120, 180, 255),
+    Color3.fromRGB(255, 180, 100),
+    Color3.fromRGB(180, 130, 255),
+    Color3.fromRGB(120, 255, 200),
+    Color3.fromRGB(255, 130, 200),
+}
+
+local meteorLayer = Instance.new("Frame")
+meteorLayer.Size = UDim2.new(1, 0, 1, 0)
+meteorLayer.BackgroundTransparency = 1
+meteorLayer.ClipsDescendants = true
+meteorLayer.ZIndex = 7
+meteorLayer.Parent = island
+
+local function makeMeteor()
+    if not meteorLayer.Parent then return end
+    local color = meteorColors[math.random(#meteorColors)]
+    local m = Instance.new("Frame")
+    m.Size = UDim2.new(0, 25, 0, 2)
+    m.BackgroundColor3 = color
+    m.BorderSizePixel = 0
+    m.Rotation = 25
+    m.ZIndex = 7
+    m.Parent = meteorLayer
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = m
+
+    local sx = math.random(-30, 60) / 100
+    m.Position = UDim2.new(sx, 0, -0.2, 0)
+
+    local dur = 1.2 + math.random() * 0.6
+    TweenService:Create(m, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
+        Position = UDim2.new(sx + 0.6, 0, 1.3, 0),
+        BackgroundTransparency = 0.7
+    }):Play()
+
+    task.delay(dur + 0.1, function()
+        if m.Parent then m:Destroy() end
+    end)
+end
+
+task.spawn(function()
+    while meteorLayer.Parent do
+        makeMeteor()
+        task.wait(math.random(6, 12) / 10)
+    end
+end)
+
+-- ============ 左侧形状图标 ============
+local starHolder = Instance.new("Frame")
+starHolder.Size = UDim2.new(0, 30, 0, 30)
+starHolder.Position = UDim2.new(0, 7, 0.5, -15)
+starHolder.BackgroundTransparency = 1
+starHolder.ZIndex = 10
+starHolder.Parent = island
+
+local shapeOuter = Instance.new("Frame")
+shapeOuter.Size = UDim2.new(1, 0, 1, 0)
+shapeOuter.BackgroundTransparency = 1
+shapeOuter.ZIndex = 11
+shapeOuter.Parent = starHolder
+local soC = Instance.new("UICorner")
+soC.CornerRadius = UDim.new(0, 0)
+soC.Parent = shapeOuter
+local soS = Instance.new("UIStroke")
+soS.Thickness = 2
+soS.Color = Color3.new(1, 1, 1)
+soS.Transparency = 0.15
+soS.Parent = shapeOuter
+
+local shapeInner = Instance.new("Frame")
+shapeInner.Size = UDim2.new(0, 22, 0, 22)
+shapeInner.Position = UDim2.new(0.5, -11, 0.5, -11)
+shapeInner.BackgroundTransparency = 1
+shapeInner.ZIndex = 11
+shapeInner.Parent = starHolder
+local siC = Instance.new("UICorner")
+siC.CornerRadius = UDim.new(0, 0)
+siC.Parent = shapeInner
+local siS = Instance.new("UIStroke")
+siS.Thickness = 1.5
+siS.Color = Color3.fromRGB(180, 200, 255)
+siS.Transparency = 0.3
+siS.Parent = shapeInner
+
+local iconCore = Instance.new("Frame")
+iconCore.Size = UDim2.new(0, 14, 0, 14)
+iconCore.Position = UDim2.new(0.5, -7, 0.5, -7)
+iconCore.BackgroundColor3 = Color3.fromRGB(120, 180, 255)
+iconCore.BorderSizePixel = 0
+iconCore.ZIndex = 12
+iconCore.Parent = starHolder
+local icC = Instance.new("UICorner")
+icC.CornerRadius = UDim.new(1, 0)
+icC.Parent = iconCore
+
+local rotOuter, rotInner, morphTime = 0, 0, 0
+RunService.RenderStepped:Connect(function(dt)
+    if shapeOuter.Parent then
+        rotOuter = (rotOuter + dt * 90) % 360
+        shapeOuter.Rotation = rotOuter
+        rotInner = (rotInner - dt * 60) % 360
+        shapeInner.Rotation = rotInner
+        morphTime = (morphTime + dt * 0.6) % 2
+        local m = (math.sin(morphTime * math.pi) + 1) / 2
+        soC.CornerRadius = UDim.new(m, 0)
+        siC.CornerRadius = UDim.new(1 - m * 0.6, 0)
+    end
+end)
+
+-- ============ 播放中的音符图标 ============
+local musicIcon = Instance.new("TextLabel")
+musicIcon.Name = "MusicIcon"
+musicIcon.Size = UDim2.new(0, 30, 0, 30)
+musicIcon.Position = UDim2.new(0, 7, 0.5, -15)
+musicIcon.BackgroundTransparency = 1
+musicIcon.Text = "♪"
+musicIcon.TextSize = 20
+musicIcon.TextColor3 = Color3.fromRGB(150, 220, 255)
+musicIcon.Font = Enum.Font.Antique
+musicIcon.TextStrokeTransparency = 0.3
+musicIcon.TextStrokeColor3 = Color3.fromRGB(0, 0, 30)
+musicIcon.Visible = false
+musicIcon.ZIndex = 15
+musicIcon.Parent = island
+
+local musicJumpConn = nil
+
+local function startMusicJump()
+    if musicJumpConn then musicJumpConn:Disconnect() end
+    local t = 0
+    musicJumpConn = RunService.RenderStepped:Connect(function(dt)
+        if not musicIcon.Visible then return end
+        t = t + dt
+        local jump = math.abs(math.sin(t * 6)) * 6
+        local scale = 1 + math.abs(math.sin(t * 6)) * 0.3
+        musicIcon.Position = UDim2.new(0, 7, 0.5, -15 - jump)
+        musicIcon.TextSize = 20 * scale
+        local hue = (t * 0.3) % 1
+        musicIcon.TextColor3 = Color3.fromHSV(hue, 0.5, 1)
+    end)
+end
+
+local function stopMusicJump()
+    if musicJumpConn then
+        musicJumpConn:Disconnect()
+        musicJumpConn = nil
+    end
+    musicIcon.Position = UDim2.new(0, 7, 0.5, -15)
+    musicIcon.TextSize = 20
+end
+
+-- ============ 时间 ============
+local timeLabel = Instance.new("TextLabel")
+timeLabel.Size = UDim2.new(0, 70, 1, 0)
+timeLabel.Position = UDim2.new(0.5, -62, 0, 0)
+timeLabel.BackgroundTransparency = 1
+timeLabel.Text = "00:00:00"
+timeLabel.TextSize = 15
+timeLabel.TextColor3 = Color3.fromRGB(230, 240, 255)
+timeLabel.Font = Enum.Font.Antique
+timeLabel.ZIndex = 10
+timeLabel.Parent = island
+
+local divider = Instance.new("TextLabel")
+divider.Size = UDim2.new(0, 14, 1, 0)
+divider.Position = UDim2.new(0.5, 5, 0, 0)
+divider.BackgroundTransparency = 1
+divider.Text = "·"
+divider.TextSize = 20
+divider.TextColor3 = Color3.fromRGB(180, 210, 255)
+divider.Font = Enum.Font.Antique
+divider.ZIndex = 10
+divider.Parent = island
+
+local fpsLabel = Instance.new("TextLabel")
+fpsLabel.Size = UDim2.new(0, 60, 1, 0)
+fpsLabel.Position = UDim2.new(0.5, 20, 0, 0)
+fpsLabel.BackgroundTransparency = 1
+fpsLabel.Text = "60 FPS"
+fpsLabel.TextSize = 15
+fpsLabel.TextColor3 = Color3.fromRGB(150, 255, 200)
+fpsLabel.Font = Enum.Font.Antique
+fpsLabel.ZIndex = 10
+fpsLabel.Parent = island
+
+task.spawn(function()
+    while timeLabel.Parent do
+        timeLabel.Text = os.date("%H:%M:%S")
+        task.wait(0.25)
+    end
+end)
+
+local fc, lt = 0, tick()
+RunService.RenderStepped:Connect(function()
+    fc = fc + 1
+    local now = tick()
+    if now - lt >= 0.5 then
+        local fps = math.floor(fc / (now - lt) + 0.5)
+        fc, lt = 0, now
+        if fpsLabel.Parent then
+            fpsLabel.Text = fps .. " FPS"
+            if fps >= 50 then
+                fpsLabel.TextColor3 = Color3.fromRGB(150, 255, 200)
+            elseif fps >= 30 then
+                fpsLabel.TextColor3 = Color3.fromRGB(255, 230, 120)
+            else
+                fpsLabel.TextColor3 = Color3.fromRGB(255, 120, 140)
+            end
+        end
+    end
+end)
+
+-- ============ 主菜单面板 ============
+local menu = Instance.new("Frame")
+menu.Name = "IslandMenu"
+menu.Size = UDim2.new(1, -20, 1, -20)
+menu.Position = UDim2.new(0, 10, 0, 10)
+menu.BackgroundColor3 = Color3.fromRGB(8, 12, 35)
+menu.BackgroundTransparency = 0.15
+menu.BorderSizePixel = 0
+menu.ClipsDescendants = true
+menu.Visible = false
+menu.ZIndex = 20
+menu.Parent = island
+
+local mC = Instance.new("UICorner")
+mC.CornerRadius = UDim.new(0, 20)
+mC.Parent = menu
+
+for i = 1, 20 do
+    local star = Instance.new("Frame")
+    star.Size = UDim2.new(0, 2, 0, 2)
+    star.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    star.BackgroundColor3 = Color3.new(1, 1, 1)
+    star.BackgroundTransparency = math.random(40, 85) / 100
+    star.BorderSizePixel = 0
+    star.ZIndex = 21
+    star.Parent = menu
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = star
+end
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 24)
+title.Position = UDim2.new(0, 10, 0, 8)
+title.BackgroundTransparency = 1
+title.Text = "✦ 星 · 空 · 令 ✦"
+title.TextSize = 12
+title.TextColor3 = Color3.fromRGB(200, 220, 255)
+title.Font = Enum.Font.Antique
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 25
+title.Parent = menu
+
+-- 当前播放显示
+local nowPlaying = Instance.new("TextLabel")
+nowPlaying.Size = UDim2.new(1, -20, 0, 26)
+nowPlaying.Position = UDim2.new(0, 10, 0, 34)
+nowPlaying.BackgroundColor3 = Color3.fromRGB(20, 30, 70)
+nowPlaying.BackgroundTransparency = 0.4
+nowPlaying.Text = "♪ 未播放"
+nowPlaying.TextSize = 12
+nowPlaying.TextColor3 = Color3.fromRGB(220, 230, 255)
+nowPlaying.Font = Enum.Font.Antique
+nowPlaying.TextTruncate = Enum.TextTruncate.AtEnd
+nowPlaying.ZIndex = 25
+nowPlaying.Parent = menu
+local npC = Instance.new("UICorner")
+npC.CornerRadius = UDim.new(0, 8)
+npC.Parent = nowPlaying
+
+-- 音乐入口按钮
+local musicEntry = Instance.new("TextButton")
+musicEntry.Size = UDim2.new(1, -20, 0, 40)
+musicEntry.Position = UDim2.new(0, 10, 0, 70)
+musicEntry.BackgroundColor3 = Color3.fromRGB(60, 50, 130)
+musicEntry.BackgroundTransparency = 0.2
+musicEntry.Text = "♪  音乐播放器"
+musicEntry.TextSize = 14
+musicEntry.TextColor3 = Color3.fromRGB(240, 235, 255)
+musicEntry.Font = Enum.Font.Antique
+musicEntry.AutoButtonColor = false
+musicEntry.ZIndex = 25
+musicEntry.Parent = menu
+local meC = Instance.new("UICorner")
+meC.CornerRadius = UDim.new(0, 12)
+meC.Parent = musicEntry
+
+local meStroke = Instance.new("UIStroke")
+meStroke.Thickness = 1.5
+meStroke.Color = Color3.fromRGB(150, 130, 255)
+meStroke.Transparency = 0.5
+meStroke.Parent = musicEntry
+
+-- 服务器入口按钮
+local serverEntry = Instance.new("TextButton")
+serverEntry.Size = UDim2.new(1, -20, 0, 40)
+serverEntry.Position = UDim2.new(0, 10, 0, 118)
+serverEntry.BackgroundColor3 = Color3.fromRGB(80, 40, 130)
+serverEntry.BackgroundTransparency = 0.2
+serverEntry.Text = "🌐  服务器脚本"
+serverEntry.TextSize = 14
+serverEntry.TextColor3 = Color3.fromRGB(240, 235, 255)
+serverEntry.Font = Enum.Font.Antique
+serverEntry.AutoButtonColor = false
+serverEntry.ZIndex = 25
+serverEntry.Parent = menu
+local seC = Instance.new("UICorner")
+seC.CornerRadius = UDim.new(0, 12)
+seC.Parent = serverEntry
+
+local seStroke = Instance.new("UIStroke")
+seStroke.Thickness = 1.5
+seStroke.Color = Color3.fromRGB(200, 100, 255)
+seStroke.Transparency = 0.5
+seStroke.Parent = serverEntry
+
+-- hover 效果
+musicEntry.MouseEnter:Connect(function()
+    TweenService:Create(musicEntry, TweenInfo.new(0.15), { BackgroundTransparency = 0.05 }):Play()
+    TweenService:Create(meStroke, TweenInfo.new(0.15), { Transparency = 0.2 }):Play()
+end)
+musicEntry.MouseLeave:Connect(function()
+    TweenService:Create(musicEntry, TweenInfo.new(0.15), { BackgroundTransparency = 0.2 }):Play()
+    TweenService:Create(meStroke, TweenInfo.new(0.15), { Transparency = 0.5 }):Play()
+end)
+serverEntry.MouseEnter:Connect(function()
+    TweenService:Create(serverEntry, TweenInfo.new(0.15), { BackgroundTransparency = 0.05 }):Play()
+    TweenService:Create(seStroke, TweenInfo.new(0.15), { Transparency = 0.2 }):Play()
+end)
+serverEntry.MouseLeave:Connect(function()
+    TweenService:Create(serverEntry, TweenInfo.new(0.15), { BackgroundTransparency = 0.2 }):Play()
+    TweenService:Create(seStroke, TweenInfo.new(0.15), { Transparency = 0.5 }):Play()
+end)
+
+-- ============ 音乐面板 ============
+local musicPanel = Instance.new("Frame")
+musicPanel.Name = "MusicPanel"
+musicPanel.Size = UDim2.new(1, -20, 1, -20)
+musicPanel.Position = UDim2.new(0, 10, 0, 10)
+musicPanel.BackgroundColor3 = Color3.fromRGB(8, 12, 35)
+musicPanel.BackgroundTransparency = 0.05
+musicPanel.BorderSizePixel = 0
+musicPanel.ClipsDescendants = true
+musicPanel.Visible = false
+musicPanel.ZIndex = 30
+musicPanel.Parent = island
+
+local mpC = Instance.new("UICorner")
+mpC.CornerRadius = UDim.new(0, 20)
+mpC.Parent = musicPanel
+
+for i = 1, 20 do
+    local star = Instance.new("Frame")
+    star.Size = UDim2.new(0, 2, 0, 2)
+    star.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    star.BackgroundColor3 = Color3.new(1, 1, 1)
+    star.BackgroundTransparency = math.random(40, 85) / 100
+    star.BorderSizePixel = 0
+    star.ZIndex = 30
+    star.Parent = musicPanel
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = star
+end
+
+-- 音乐面板顶栏
+local mpTopBar = Instance.new("Frame")
+mpTopBar.Size = UDim2.new(1, 0, 0, 34)
+mpTopBar.BackgroundTransparency = 1
+mpTopBar.ZIndex = 32
+mpTopBar.Parent = musicPanel
+
+local mpBackBtn = Instance.new("TextButton")
+mpBackBtn.Size = UDim2.new(0, 32, 0, 32)
+mpBackBtn.Position = UDim2.new(0, 4, 0, 1)
+mpBackBtn.BackgroundColor3 = Color3.fromRGB(40, 50, 100)
+mpBackBtn.BackgroundTransparency = 0.3
+mpBackBtn.Text = "←"
+mpBackBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+mpBackBtn.TextSize = 18
+mpBackBtn.Font = Enum.Font.Antique
+mpBackBtn.AutoButtonColor = false
+mpBackBtn.ZIndex = 33
+mpBackBtn.Parent = mpTopBar
+local mpbC = Instance.new("UICorner")
+mpbC.CornerRadius = UDim.new(1, 0)
+mpbC.Parent = mpBackBtn
+
+local mpTitle = Instance.new("TextLabel")
+mpTitle.Size = UDim2.new(1, -90, 1, 0)
+mpTitle.Position = UDim2.new(0, 44, 0, 0)
+mpTitle.BackgroundTransparency = 1
+mpTitle.Text = "♪ 音乐播放器"
+mpTitle.TextSize = 13
+mpTitle.TextColor3 = Color3.fromRGB(220, 230, 255)
+mpTitle.Font = Enum.Font.Antique
+mpTitle.TextXAlignment = Enum.TextXAlignment.Left
+mpTitle.ZIndex = 33
+mpTitle.Parent = mpTopBar
+
+-- 当前歌曲（音乐面板内）
+local mpNowPlaying = Instance.new("TextLabel")
+mpNowPlaying.Size = UDim2.new(1, -16, 0, 30)
+mpNowPlaying.Position = UDim2.new(0, 8, 0, 40)
+mpNowPlaying.BackgroundColor3 = Color3.fromRGB(20, 30, 70)
+mpNowPlaying.BackgroundTransparency = 0.4
+mpNowPlaying.Text = "♪ 未播放"
+mpNowPlaying.TextSize = 12
+mpNowPlaying.TextColor3 = Color3.fromRGB(220, 230, 255)
+mpNowPlaying.Font = Enum.Font.Antique
+mpNowPlaying.TextTruncate = Enum.TextTruncate.AtEnd
+mpNowPlaying.ZIndex = 33
+mpNowPlaying.Parent = musicPanel
+local mpnpC = Instance.new("UICorner")
+mpnpC.CornerRadius = UDim.new(0, 8)
+mpnpC.Parent = mpNowPlaying
+
+-- 播放控制
+local mpCtrl = Instance.new("Frame")
+mpCtrl.Size = UDim2.new(1, -16, 0, 46)
+mpCtrl.Position = UDim2.new(0, 8, 0, 76)
+mpCtrl.BackgroundTransparency = 1
+mpCtrl.ZIndex = 33
+mpCtrl.Parent = musicPanel
+
+local mpPrev = Instance.new("TextButton")
+mpPrev.Size = UDim2.new(0, 50, 0, 42)
+mpPrev.Position = UDim2.new(0, 0, 0, 2)
+mpPrev.BackgroundColor3 = Color3.fromRGB(40, 50, 100)
+mpPrev.BackgroundTransparency = 0.2
+mpPrev.Text = "⏮"
+mpPrev.TextColor3 = Color3.fromRGB(220, 230, 255)
+mpPrev.TextSize = 22
+mpPrev.Font = Enum.Font.Antique
+mpPrev.AutoButtonColor = false
+mpPrev.ZIndex = 34
+mpPrev.Parent = mpCtrl
+local mppvC = Instance.new("UICorner")
+mppvC.CornerRadius = UDim.new(0, 12)
+mppvC.Parent = mpPrev
+
+local mpPlay = Instance.new("TextButton")
+mpPlay.Size = UDim2.new(0, 60, 0, 42)
+mpPlay.Position = UDim2.new(0.5, -30, 0, 2)
+mpPlay.BackgroundColor3 = Color3.fromRGB(80, 130, 240)
+mpPlay.Text = "▶"
+mpPlay.TextColor3 = Color3.new(1, 1, 1)
+mpPlay.TextSize = 22
+mpPlay.Font = Enum.Font.Antique
+mpPlay.AutoButtonColor = false
+mpPlay.ZIndex = 34
+mpPlay.Parent = mpCtrl
+local mppbC = Instance.new("UICorner")
+mppbC.CornerRadius = UDim.new(0, 12)
+mppbC.Parent = mpPlay
+
+local mpNext = Instance.new("TextButton")
+mpNext.Size = UDim2.new(0, 50, 0, 42)
+mpNext.Position = UDim2.new(1, -50, 0, 2)
+mpNext.BackgroundColor3 = Color3.fromRGB(40, 50, 100)
+mpNext.BackgroundTransparency = 0.2
+mpNext.Text = "⏭"
+mpNext.TextColor3 = Color3.fromRGB(220, 230, 255)
+mpNext.TextSize = 22
+mpNext.Font = Enum.Font.Antique
+mpNext.AutoButtonColor = false
+mpNext.ZIndex = 34
+mpNext.Parent = mpCtrl
+local mpnxC = Instance.new("UICorner")
+mpnxC.CornerRadius = UDim.new(0, 12)
+mpnxC.Parent = mpNext
+
+local mpShuffle = Instance.new("TextButton")
+mpShuffle.Size = UDim2.new(1, -16, 0, 34)
+mpShuffle.Position = UDim2.new(0, 8, 0, 130)
+mpShuffle.BackgroundColor3 = Color3.fromRGB(60, 50, 130)
+mpShuffle.BackgroundTransparency = 0.2
+mpShuffle.Text = "🎲  随机播放一首"
+mpShuffle.TextSize = 13
+mpShuffle.TextColor3 = Color3.fromRGB(240, 235, 255)
+mpShuffle.Font = Enum.Font.Antique
+mpShuffle.AutoButtonColor = false
+mpShuffle.ZIndex = 33
+mpShuffle.Parent = musicPanel
+local mpshC = Instance.new("UICorner")
+mpshC.CornerRadius = UDim.new(0, 12)
+mpshC.Parent = mpShuffle
+
+local mpVol = Instance.new("TextButton")
+mpVol.Size = UDim2.new(1, -16, 0, 30)
+mpVol.Position = UDim2.new(0, 8, 0, 172)
+mpVol.BackgroundColor3 = Color3.fromRGB(30, 40, 80)
+mpVol.BackgroundTransparency = 0.3
+mpVol.Text = "🔊 音量 50%"
+mpVol.TextSize = 12
+mpVol.TextColor3 = Color3.fromRGB(220, 230, 255)
+mpVol.Font = Enum.Font.Antique
+mpVol.AutoButtonColor = false
+mpVol.ZIndex = 33
+mpVol.Parent = musicPanel
+local mpvC = Instance.new("UICorner")
+mpvC.CornerRadius = UDim.new(0, 10)
+mpvC.Parent = mpVol
+
+-- ============ 服务器面板 ============
+local serverPanel = Instance.new("Frame")
+serverPanel.Name = "ServerPanel"
+serverPanel.Size = UDim2.new(1, -20, 1, -20)
+serverPanel.Position = UDim2.new(0, 10, 0, 10)
+serverPanel.BackgroundColor3 = Color3.fromRGB(8, 12, 35)
+serverPanel.BackgroundTransparency = 0.05
+serverPanel.BorderSizePixel = 0
+serverPanel.ClipsDescendants = true
+serverPanel.Visible = false
+serverPanel.ZIndex = 30
+serverPanel.Parent = island
+
+local spC = Instance.new("UICorner")
+spC.CornerRadius = UDim.new(0, 20)
+spC.Parent = serverPanel
+
+for i = 1, 20 do
+    local star = Instance.new("Frame")
+    star.Size = UDim2.new(0, 2, 0, 2)
+    star.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    star.BackgroundColor3 = Color3.new(1, 1, 1)
+    star.BackgroundTransparency = math.random(40, 85) / 100
+    star.BorderSizePixel = 0
+    star.ZIndex = 30
+    star.Parent = serverPanel
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = star
+end
+
+local spTopBar = Instance.new("Frame")
+spTopBar.Size = UDim2.new(1, 0, 0, 34)
+spTopBar.BackgroundTransparency = 1
+spTopBar.ZIndex = 32
+spTopBar.Parent = serverPanel
+
+local spBackBtn = Instance.new("TextButton")
+spBackBtn.Size = UDim2.new(0, 32, 0, 32)
+spBackBtn.Position = UDim2.new(0, 4, 0, 1)
+spBackBtn.BackgroundColor3 = Color3.fromRGB(40, 50, 100)
+spBackBtn.BackgroundTransparency = 0.3
+spBackBtn.Text = "←"
+spBackBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+spBackBtn.TextSize = 18
+spBackBtn.Font = Enum.Font.Antique
+spBackBtn.AutoButtonColor = false
+spBackBtn.ZIndex = 33
+spBackBtn.Parent = spTopBar
+local spbC = Instance.new("UICorner")
+spbC.CornerRadius = UDim.new(1, 0)
+spbC.Parent = spBackBtn
+
+local spTitle = Instance.new("TextLabel")
+spTitle.Size = UDim2.new(1, -90, 1, 0)
+spTitle.Position = UDim2.new(0, 44, 0, 0)
+spTitle.BackgroundTransparency = 1
+spTitle.Text = "🌐 服务器脚本"
+spTitle.TextSize = 13
+spTitle.TextColor3 = Color3.fromRGB(220, 230, 255)
+spTitle.Font = Enum.Font.Antique
+spTitle.TextXAlignment = Enum.TextXAlignment.Left
+spTitle.ZIndex = 33
+spTitle.Parent = spTopBar
+
+local spScroll = Instance.new("ScrollingFrame")
+spScroll.Size = UDim2.new(1, -16, 1, -78)
+spScroll.Position = UDim2.new(0, 8, 0, 40)
+spScroll.BackgroundTransparency = 1
+spScroll.BorderSizePixel = 0
+spScroll.ScrollBarThickness = 4
+spScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 160, 255)
+spScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+spScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+spScroll.ZIndex = 33
+spScroll.Parent = serverPanel
+
+local spLayout = Instance.new("UIListLayout")
+spLayout.Padding = UDim.new(0, 5)
+spLayout.Parent = spScroll
+
+local spStatus = Instance.new("TextLabel")
+spStatus.Size = UDim2.new(1, -16, 0, 24)
+spStatus.Position = UDim2.new(0, 8, 1, -30)
+spStatus.BackgroundColor3 = Color3.fromRGB(20, 30, 70)
+spStatus.BackgroundTransparency = 0.3
+spStatus.Text = "选择脚本执行"
+spStatus.TextSize = 11
+spStatus.TextColor3 = Color3.fromRGB(200, 220, 255)
+spStatus.Font = Enum.Font.Antique
+spStatus.ZIndex = 33
+spStatus.Parent = serverPanel
+local spsC = Instance.new("UICorner")
+spsC.CornerRadius = UDim.new(0, 8)
+spsC.Parent = spStatus
+
+local function executeScript(url, name)
+    spStatus.Text = "⏳ 正在加载 " .. name .. " ..."
+    task.spawn(function()
+        local success, err = pcall(function()
+            local source = game:HttpGet(url)
+            loadstring(source)()
+        end)
+        if success then
+            spStatus.Text = "✅ " .. name .. " 执行成功"
+        else
+            spStatus.Text = "❌ " .. name .. " 失败: " .. tostring(err):sub(1, 40)
+        end
+        task.wait(3)
+        spStatus.Text = "选择脚本执行"
+    end)
+end
+
+local btnColors = {
+    {Color3.fromRGB(255, 100, 130), Color3.fromRGB(180, 40, 90)},
+    {Color3.fromRGB(100, 180, 255), Color3.fromRGB(40, 100, 200)},
+    {Color3.fromRGB(100, 220, 150), Color3.fromRGB(40, 160, 100)},
+    {Color3.fromRGB(255, 180, 80), Color3.fromRGB(200, 120, 30)},
+    {Color3.fromRGB(180, 120, 255), Color3.fromRGB(110, 60, 190)},
+    {Color3.fromRGB(255, 130, 200), Color3.fromRGB(200, 70, 150)},
+    {Color3.fromRGB(120, 220, 240), Color3.fromRGB(50, 150, 180)},
+    {Color3.fromRGB(255, 220, 100), Color3.fromRGB(200, 160, 30)},
+}
+
+for i, sv in ipairs(serverList) do
+    local color = btnColors[(i - 1) % #btnColors + 1]
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.BackgroundColor3 = color[1]
+    btn.BackgroundTransparency = 0.3
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    btn.LayoutOrder = i
+    btn.ZIndex = 34
+    btn.Parent = spScroll
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 10)
+    c.Parent = btn
+
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color[1]),
+        ColorSequenceKeypoint.new(1, color[2]),
+    })
+    grad.Rotation = 45
+    grad.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Color = color[1]
+    stroke.Transparency = 0.3
+    stroke.Parent = btn
+
+    local ic = Instance.new("TextLabel")
+    ic.Size = UDim2.new(0, 26, 1, 0)
+    ic.Position = UDim2.new(0, 8, 0, 0)
+    ic.BackgroundTransparency = 1
+    ic.Text = "⚡"
+    ic.TextSize = 14
+    ic.TextColor3 = Color3.new(1, 1, 1)
+    ic.Font = Enum.Font.Antique
+    ic.TextStrokeTransparency = 0.3
+    ic.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    ic.ZIndex = 35
+    ic.Parent = btn
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -50, 1, 0)
+    lbl.Position = UDim2.new(0, 34, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = sv[1]
+    lbl.TextSize = 12
+    lbl.TextColor3 = Color3.new(1, 1, 1)
+    lbl.Font = Enum.Font.Antique
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextTruncate = Enum.TextTruncate.AtEnd
+    lbl.TextStrokeTransparency = 0.4
+    lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    lbl.ZIndex = 35
+    lbl.Parent = btn
+
+    local deco = Instance.new("Frame")
+    deco.Size = UDim2.new(0, 6, 0, 6)
+    deco.Position = UDim2.new(1, -12, 0, 6)
+    deco.BackgroundColor3 = Color3.new(1, 1, 1)
+    deco.BackgroundTransparency = 0.3
+    deco.BorderSizePixel = 0
+    deco.ZIndex = 35
+    deco.Parent = btn
+    local decoC = Instance.new("UICorner")
+    decoC.CornerRadius = UDim.new(1, 0)
+    decoC.Parent = deco
+
+    btn.MouseButton1Click:Connect(function()
+        executeScript(sv[2], sv[1])
+    end)
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundTransparency = 0.1 }):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.15), { Transparency = 0 }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundTransparency = 0.3 }):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.15), { Transparency = 0.3 }):Play()
+    end)
+end
+
+-- ============ 播放状态 ============
+local isPlaying = false
+local currentIndex = 0
+local volLevels = {0, 0.25, 0.5, 0.75, 1}
+local volIdx = 3
+
+local function playByIndex(idx)
+    if #songList == 0 then return end
+    idx = ((idx - 1) % #songList) + 1
+    currentIndex = idx
+    local song = songList[idx]
+    musicSound:Stop()
+    musicSound.SoundId = "rbxassetid://" .. song[1]
+    musicSound.TimePosition = 0
+    musicSound:Play()
+    isPlaying = true
+    mpPlay.Text = "❚❚"
+    mpNowPlaying.Text = "♪ " .. song[2]
+    nowPlaying.Text = "♪ " .. song[2]
+    -- 收起时显示音符图标
+    if not isExpanded then
+        starHolder.Visible = false
+        musicIcon.Visible = true
+        startMusicJump()
+    end
+end
+
+local function playRandom()
+    if #songList == 0 then return end
+    playByIndex(math.random(#songList))
+end
+
+local function nextSong()
+    if #songList == 0 then return end
+    playByIndex(currentIndex + 1)
+end
+
+local function prevSong()
+    if #songList == 0 then return end
+    playByIndex(currentIndex - 1)
+end
+
+mpPlay.MouseButton1Click:Connect(function()
+    if musicSound.SoundId == "" then playRandom() return end
+    if isPlaying then
+        musicSound:Pause()
+        isPlaying = false
+        mpPlay.Text = "▶"
+        stopMusicJump()
+    else
+        musicSound:Resume()
+        isPlaying = true
+        mpPlay.Text = "❚❚"
+        startMusicJump()
+    end
+end)
+
+mpShuffle.MouseButton1Click:Connect(playRandom)
+mpNext.MouseButton1Click:Connect(nextSong)
+mpPrev.MouseButton1Click:Connect(prevSong)
+
+mpVol.MouseButton1Click:Connect(function()
+    volIdx = (volIdx % #volLevels) + 1
+    musicSound.Volume = volLevels[volIdx]
+    mpVol.Text = "🔊 音量 " .. math.floor(volLevels[volIdx] * 100) .. "%"
+end)
+
+musicSound.Ended:Connect(nextSong)
+
+-- ============ 面板切换 ============
+local isExpanded = false
+
+local function hideAllPanels()
+    menu.Visible = false
+    musicPanel.Visible = false
+    serverPanel.Visible = false
+end
+
+local function showMainMenu()
+    hideAllPanels()
+    menu.Visible = true
+end
+
+local function showMusicPanel()
+    hideAllPanels()
+    musicPanel.Visible = true
+end
+
+local function showServerPanel()
+    hideAllPanels()
+    serverPanel.Visible = true
+end
+
+musicEntry.MouseButton1Click:Connect(showMusicPanel)
+serverEntry.MouseButton1Click:Connect(showServerPanel)
+
+mpBackBtn.MouseButton1Click:Connect(showMainMenu)
+spBackBtn.MouseButton1Click:Connect(showMainMenu)
+
+-- ============ 展开 / 收起 ============
+function toggleIsland(expand)
+    isExpanded = expand
+    if expand then
+        TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 280, 0, 240)
+        }):Play()
+        islandCorner.CornerRadius = UDim.new(0, 24)
+        starHolder.Visible = false
+        musicIcon.Visible = false
+        timeLabel.Visible = false
+        divider.Visible = false
+        fpsLabel.Visible = false
+        showMainMenu()
+        outsideClicker.Visible = true
+    else
+        TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 200, 0, 46)
+        }):Play()
+        islandCorner.CornerRadius = UDim.new(1, 0)
+        if isPlaying then
+            starHolder.Visible = false
+            musicIcon.Visible = true
+        else
+            starHolder.Visible = true
+            musicIcon.Visible = false
+        end
+        timeLabel.Visible = true
+        divider.Visible = true
+        fpsLabel.Visible = true
+        hideAllPanels()
+        outsideClicker.Visible = false
+    end
+end
+
+for _, v in ipairs(shadow:GetChildren()) do
+    if v:IsA("Frame") and v.Name:match("^Shadow%d$") then
+        local c = v:FindFirstChildOfClass("UICorner")
+        if c then
+            islandCorner:GetPropertyChangedSignal("CornerRadius"):Connect(function()
+                c.CornerRadius = islandCorner.CornerRadius
+            end)
+        end
+    end
+end
+
+-- ============ 点击空白区域收起 ============
+outsideClicker.MouseButton1Click:Connect(function()
+    if isExpanded then
+        toggleIsland(false)
+    end
+end)
+
+-- ============ 拖动 ============
+local dragging = false
+local dragStart, startPos, dragMoved = nil, nil, false
+
+shadow.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        if isExpanded then
+            local hit = playerGui:GetGuiObjectsAtPosition(input.Position.X, input.Position.Y)
+            for _, obj in ipairs(hit) do
+                if obj:IsA("TextButton") or obj:IsA("TextBox") then return end
+            end
+        end
+        dragging = true
+        dragMoved = false
+        dragStart = input.Position
+        startPos = shadow.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                if not dragMoved then
+                    toggleIsland(not isExpanded)
+                end
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > 4 then dragMoved = true end
+        shadow.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+print("🎵🌐 星空音乐 + 服务器灵动岛已注入")
