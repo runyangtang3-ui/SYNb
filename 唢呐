@@ -1,0 +1,796 @@
+local v1 = loadstring(game:HttpGet("https://raw.githubusercontent.com/WasKKal/WasUI-For-Roblox/main/WasUIPro.lua", true))()
+local v2 = game:GetService("UserInputService")
+local v3 = game:GetService("Players")
+local v4 = v3.LocalPlayer
+local v5 = game:GetService("RunService")
+local v6 = workspace.CurrentCamera
+local v7 = game:GetService("VirtualInputManager")
+
+local v8 = v1:CreateWindow({
+    Title = "TrashHub - 索那里亚的生物",
+    MinimizedText = "TrashHub",
+    Folder = "TrashHub_Sonaaria"
+})
+
+local v9 = v8:Tab({ Title = "自动化" })
+local v10 = v8:Tab({ Title = "战斗" })
+local v11 = v8:Tab({ Title = "生物ESP" })
+local v12 = v8:Tab({ Title = "物体ESP" })
+local v13 = v8:Tab({ Title = "绕过" })
+local v14 = v8:Tab({ Title = "收集" })
+
+local v15 = false
+local v16 = false
+local v17 = "普通湖"
+local v18 = nil
+local v19 = nil
+local v20 = false
+local v21 = nil
+local v22 = false
+local v23 = {}
+local v24 = {}
+local v25 = false
+local v26 = nil
+local v27 = false
+local v28 = 100
+local v29 = false
+local v30 = nil
+local v31 = {}
+local v32 = {}
+local v33 = false
+local v34 = nil
+
+local v35 = workspace:WaitForChild("Interactions"):WaitForChild("Food")
+local v36 = workspace:WaitForChild("Interactions"):WaitForChild("Lakes")
+local v37 = v36:FindFirstChild("MagicalLakes")
+local v38 = workspace:WaitForChild("Interactions"):WaitForChild("NPCs"):WaitForChild("Roots")
+local v39 = workspace:WaitForChild("Interactions"):WaitForChild("NPCs"):WaitForChild("Models")
+local v40 = workspace:WaitForChild("Interactions"):WaitForChild("Mud")
+local v41 = workspace:FindFirstChild("Event") and workspace.Event:FindFirstChild("SpawnedTrinketModels")
+local v42 = workspace:WaitForChild("Interactions")
+
+local v43 = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DrinkRemote")
+local v44 = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Food")
+local v45 = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("NPCDamageRemote")
+local v46 = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CharactersDamageRemote")
+local v47 = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("FoodChunk")
+local v48 = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Mud")
+
+local v49 = nil
+local function v50()
+    for _, v51 in ipairs(v40:GetChildren()) do
+        if v51:IsA("BasePart") or v51:IsA("Model") then
+            v49 = v51
+            return
+        end
+    end
+end
+v50()
+
+local v52 = "远程"
+local v53 = false
+local v54 = nil
+
+local function v55()
+    local v56 = v4.Character
+    if not v56 then return nil end
+    local v57 = v56:FindFirstChild("HumanoidRootPart")
+    if v57 then return v57.Position end
+    return nil
+end
+
+local function v58(v59)
+    if v59:IsA("BasePart") then
+        return v59.Position
+    end
+    local v60 = v59:FindFirstChild("HumanoidRootPart") or v59:FindFirstChildWhichIsA("BasePart")
+    if v60 then
+        return v60.Position
+    end
+    return v59:GetPivot().Position
+end
+
+local function v61()
+    local v62 = v55()
+    if not v62 then return nil end
+    local v63 = nil
+    local v64 = math.huge
+    for _, v65 in ipairs(v35:GetChildren()) do
+        if v65:IsA("BasePart") or v65:IsA("Model") then
+            local v66 = v58(v65)
+            local v67 = (v66 - v62).Magnitude
+            if v67 < v64 then
+                v64 = v67
+                v63 = v65
+            end
+        end
+    end
+    return v63
+end
+
+local function v68()
+    local v62 = v55()
+    if not v62 then return nil end
+    local v63 = nil
+    local v64 = math.huge
+    local function v69(v70)
+        if v70:IsA("BasePart") or v70:IsA("Model") then
+            local v66 = v58(v70)
+            local v67 = (v66 - v62).Magnitude
+            if v67 < v64 then
+                v64 = v67
+                v63 = v70
+            end
+        end
+    end
+    if v17 == "魔法湖" and v37 then
+        for _, v71 in ipairs(v37:GetChildren()) do
+            v69(v71)
+        end
+    else
+        for _, v71 in ipairs(v36:GetChildren()) do
+            if v71 ~= v37 then v69(v71) end
+        end
+    end
+    return v63
+end
+
+local function v72()
+    local v62 = v55()
+    if not v62 then return nil end
+    local v63 = nil
+    local v64 = math.huge
+    for _, v73 in ipairs(v38:GetChildren()) do
+        if v73:IsA("BasePart") then
+            local v67 = (v73.Position - v62).Magnitude
+            if v67 < v64 and v67 <= v28 then
+                v64 = v67
+                v63 = v73
+            end
+        end
+    end
+    return v63
+end
+
+local function v74()
+    local v62 = v55()
+    if not v62 then return nil end
+    local v63 = nil
+    local v64 = math.huge
+    for _, v75 in ipairs(v3:GetPlayers()) do
+        if v75 ~= v4 and v75.Character then
+            local v76 = v58(v75.Character)
+            local v67 = (v76 - v62).Magnitude
+            if v67 < v64 and v67 <= v28 then
+                v64 = v67
+                v63 = v75
+            end
+        end
+    end
+    return v63
+end
+
+local function v77()
+    if v18 then task.cancel(v18) v18 = nil end
+end
+
+local function v78()
+    if v19 then task.cancel(v19) v19 = nil end
+end
+
+local function v79()
+    if v18 then return end
+    v18 = task.spawn(function()
+        while v15 do
+            local v80 = v61()
+            if v80 then pcall(function() v44:FireServer(v80) end) end
+            task.wait(2)
+        end
+        v18 = nil
+    end)
+end
+
+local function v80()
+    if v19 then return end
+    v19 = task.spawn(function()
+        while v16 do
+            local v81 = v68()
+            if v81 then pcall(function() v43:FireServer(v81) end) end
+            task.wait(2)
+        end
+        v19 = nil
+    end)
+end
+
+v9:Toggle({
+    Title = "自动吃食物",
+    Value = false,
+    FeatureName = "auto_eat",
+    ConfigKey = "auto_eat",
+    Tooltip = "自动吃食物",
+    Callback = function(v82)
+        v15 = v82
+        if v82 then v79() else v77() end
+    end
+})
+
+v9:Toggle({
+    Title = "自动喝水",
+    Value = false,
+    FeatureName = "auto_drink",
+    ConfigKey = "auto_drink",
+    Tooltip = "自动喝水",
+    Callback = function(v83)
+        v16 = v83
+        if v83 then v80() else v78() end
+    end
+})
+
+v9:Dropdown({
+    Title = "水类型",
+    Values = { "普通湖", "魔法湖" },
+    Value = "普通湖",
+    FeatureName = "water_type",
+    ConfigKey = "water_type",
+    Tooltip = "选择水类型",
+    Callback = function(v84) v17 = v84 end
+})
+
+v9:Toggle({
+    Title = "自动献祭",
+    Value = false,
+    Locked = true,
+    FeatureName = "auto_sacrifice",
+    ConfigKey = "auto_sacrifice",
+    Tooltip = "暂未开放",
+    Callback = function(v85)
+        v29 = v85
+        if v85 then
+            if v30 then task.cancel(v30) v30 = nil end
+            v30 = task.spawn(function()
+                while v29 do
+                    local v86 = workspace:FindFirstChild("Interactions") and workspace.Interactions:FindFirstChild("Food") and workspace.Interactions.Food:FindFirstChild("Carcass")
+                    if v86 then
+                        pcall(function() v47:InvokeServer(v86) end)
+                    end
+                    task.wait(5)
+                end
+                v30 = nil
+            end)
+        else
+            if v30 then task.cancel(v30) v30 = nil end
+        end
+    end
+})
+
+v9:Toggle({
+    Title = "自动拾取Trinket",
+    Value = false,
+    FeatureName = "auto_trinket",
+    ConfigKey = "auto_trinket",
+    Tooltip = "自动拾取Trinket",
+    Callback = function(v87)
+        v53 = v87
+        if v53 then
+            if v54 then task.cancel(v54) v54 = nil end
+            v54 = task.spawn(function()
+                while v53 do
+                    if v41 then
+                        local v88 = v41:GetChildren()
+                        for _, v89 in ipairs(v88) do
+                            if v89:IsA("BasePart") or v89:IsA("Model") then
+                                local v90 = v4.Character
+                                local v91 = v90 and v90:FindFirstChild("HumanoidRootPart")
+                                if v91 then
+                                    local v92 = v58(v89)
+                                    v91.CFrame = CFrame.new(v92)
+                                    task.wait(0.2)
+                                    v7:SendKeyEvent(true, Enum.KeyCode.F15, false, game)
+                                    task.wait(0.05)
+                                    v7:SendKeyEvent(false, Enum.KeyCode.F15, false, game)
+                                    task.wait(0.2)
+                                end
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+                v54 = nil
+            end)
+        else
+            if v54 then task.cancel(v54) v54 = nil end
+        end
+    end
+})
+
+local function v93()
+    if v21 then task.cancel(v21) v21 = nil end
+end
+
+local function v94()
+    if v21 then return end
+    v21 = task.spawn(function()
+        while v20 do
+            local v95 = v72()
+            if v95 then pcall(function() v45:FireServer({ v95 }) end) end
+            task.wait(0.5)
+        end
+        v21 = nil
+    end)
+end
+
+v10:Toggle({
+    Title = "NPC杀戮",
+    Value = false,
+    FeatureName = "npc_kill",
+    ConfigKey = "npc_kill",
+    Tooltip = "自动攻击NPC",
+    Callback = function(v96)
+        v20 = v96
+        if v96 then v94() else v93() end
+    end
+})
+
+local function v97()
+    if v26 then task.cancel(v26) v26 = nil end
+end
+
+local function v98()
+    if v26 then return end
+    v26 = task.spawn(function()
+        while v25 do
+            local v99 = v74()
+            if v99 and v99.Character then
+                pcall(function() v46:FireServer({ v99.Character }) end)
+            end
+            task.wait(0.5)
+        end
+        v26 = nil
+    end)
+end
+
+v10:Toggle({
+    Title = "玩家杀戮",
+    Value = false,
+    FeatureName = "player_kill",
+    ConfigKey = "player_kill",
+    Tooltip = "自动攻击玩家",
+    Callback = function(v100)
+        v25 = v100
+        if v100 then v98() else v97() end
+    end
+})
+
+v10:Slider({
+    Title = "杀戮范围",
+    Value = { Min = 10, Max = 500, Default = 100 },
+    FeatureName = "kill_range",
+    ConfigKey = "kill_range",
+    Tooltip = "攻击范围",
+    Callback = function(v101)
+        v28 = v101
+    end
+})
+
+local v102 = false
+local v103 = 200
+local v104 = {}
+local v105 = {}
+local v106 = {}
+local v107 = {}
+
+local function v108()
+    for _, v109 in pairs(v104) do
+        if v109 then v109:Disconnect() end
+    end
+    v104 = {}
+    for _, v110 in pairs(v105) do
+        if v110 and v110.Parent then v110:Destroy() end
+    end
+    v105 = {}
+    for _, v111 in pairs(v39:GetChildren()) do
+        if v111:FindFirstChild("Highlight") then v111.Highlight:Destroy() end
+    end
+    for _, v112 in pairs(v3:GetPlayers()) do
+        if v112 ~= v4 and v112.Character and v112.Character:FindFirstChild("PlayerHighlight") then
+            v112.Character.PlayerHighlight:Destroy()
+        end
+    end
+    for _, v113 in pairs(v106) do
+        if v113 and v113.Parent then v113:Destroy() end
+    end
+    v106 = {}
+end
+
+local function v114(v115, v116, v117)
+    local v118 = v116
+    if v117 and v117 <= v103 then
+        local v119 = 12 + math.floor((1 - v117 / v103) * 8)
+        v119 = math.clamp(v119, 12, 20)
+        v118.TextSize = v119
+        v118.Text = string.format("%.1f", v117)
+    else
+        v118.Text = "超出可渲染距离"
+        v118.TextSize = 12
+    end
+end
+
+local function v120()
+    local v121 = v55()
+    if not v121 then return end
+    for _, v111 in pairs(v39:GetChildren()) do
+        local v122 = v105[v111]
+        if v122 and v122.Parent then
+            local v123 = v58(v111)
+            local v124 = (v123 - v121).Magnitude
+            local v125 = v122:FindFirstChild("NameLabel")
+            if v125 then v125.Text = v111.Name end
+            local v126 = v122:FindFirstChild("DistLabel")
+            if v126 then v114(v111, v126, v124) end
+            local v127, v128 = v6:WorldToViewportPoint(v123)
+            if v128 then
+                v122.Position = UDim2.new(0, v127.X - v122.AbsoluteSize.X/2, 0, v127.Y - v122.AbsoluteSize.Y - 20)
+                v122.Visible = true
+            else
+                v122.Visible = false
+            end
+        end
+    end
+    for _, v112 in pairs(v3:GetPlayers()) do
+        if v112 ~= v4 and v112.Character then
+            local v129 = v106[v112]
+            if v129 and v129.Parent then
+                local v130 = pcall(v58, v112.Character)
+                if not v130 then
+                    v129.Visible = false
+                    continue
+                end
+                local v131 = v58(v112.Character)
+                local v132 = (v131 - v121).Magnitude
+                local v133 = v129:FindFirstChild("NameLabel")
+                if v133 then v133.Text = v112.Name end
+                local v134 = v129:FindFirstChild("DistLabel")
+                if v134 then v114(v112, v134, v132) end
+                local v135, v136 = v6:WorldToViewportPoint(v131)
+                if v136 then
+                    v129.Position = UDim2.new(0, v135.X - v129.AbsoluteSize.X/2, 0, v135.Y - v129.AbsoluteSize.Y - 20)
+                    v129.Visible = true
+                else
+                    v129.Visible = false
+                end
+            end
+        end
+    end
+end
+
+local function v137()
+    v108()
+    for _, v111 in ipairs(v39:GetChildren()) do
+        if v111:IsA("Model") then
+            local v138 = Instance.new("Highlight")
+            v138.Name = "Highlight"
+            v138.FillColor = Color3.fromRGB(0, 255, 0)
+            v138.OutlineColor = Color3.fromRGB(255, 255, 255)
+            v138.FillTransparency = 0.5
+            v138.Parent = v111
+            local v139 = Instance.new("BillboardGui")
+            v139.Name = "NPCESP"
+            v139.Size = UDim2.new(0, 120, 0, 40)
+            v139.StudsOffset = Vector3.new(0, 3, 0)
+            v139.AlwaysOnTop = true
+            local v140 = Instance.new("TextLabel")
+            v140.Name = "NameLabel"
+            v140.Size = UDim2.new(1, 0, 0.5, 0)
+            v140.BackgroundTransparency = 1
+            v140.TextColor3 = Color3.fromRGB(255, 255, 255)
+            v140.TextStrokeTransparency = 0
+            v140.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            v140.Font = Enum.Font.GothamBold
+            v140.TextSize = 14
+            v140.Text = v111.Name
+            v140.Parent = v139
+            local v141 = Instance.new("TextLabel")
+            v141.Name = "DistLabel"
+            v141.Size = UDim2.new(1, 0, 0.5, 0)
+            v141.Position = UDim2.new(0, 0, 0.5, 0)
+            v141.BackgroundTransparency = 1
+            v141.TextColor3 = Color3.fromRGB(255, 255, 255)
+            v141.TextStrokeTransparency = 0
+            v141.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            v141.Font = Enum.Font.GothamBold
+            v141.TextSize = 14
+            v141.Text = "0"
+            v141.Parent = v139
+            v139.Parent = v111
+            v105[v111] = v139
+        end
+    end
+    for _, v112 in pairs(v3:GetPlayers()) do
+        if v112 ~= v4 and v112.Character then
+            local v142 = Instance.new("Highlight")
+            v142.Name = "PlayerHighlight"
+            v142.FillColor = Color3.fromRGB(255, 0, 0)
+            v142.OutlineColor = Color3.fromRGB(255, 255, 255)
+            v142.FillTransparency = 0.5
+            v142.Parent = v112.Character
+            local v143 = Instance.new("BillboardGui")
+            v143.Name = "PlayerESP"
+            v143.Size = UDim2.new(0, 120, 0, 40)
+            v143.StudsOffset = Vector3.new(0, 3, 0)
+            v143.AlwaysOnTop = true
+            local v144 = Instance.new("TextLabel")
+            v144.Name = "NameLabel"
+            v144.Size = UDim2.new(1, 0, 0.5, 0)
+            v144.BackgroundTransparency = 1
+            v144.TextColor3 = Color3.fromRGB(255, 255, 255)
+            v144.TextStrokeTransparency = 0
+            v144.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            v144.Font = Enum.Font.GothamBold
+            v144.TextSize = 14
+            v144.Text = v112.Name
+            v144.Parent = v143
+            local v145 = Instance.new("TextLabel")
+            v145.Name = "DistLabel"
+            v145.Size = UDim2.new(1, 0, 0.5, 0)
+            v145.Position = UDim2.new(0, 0, 0.5, 0)
+            v145.BackgroundTransparency = 1
+            v145.TextColor3 = Color3.fromRGB(255, 255, 255)
+            v145.TextStrokeTransparency = 0
+            v145.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            v145.Font = Enum.Font.GothamBold
+            v145.TextSize = 14
+            v145.Text = "0"
+            v145.Parent = v143
+            v143.Parent = v112.Character
+            v106[v112] = v143
+        end
+    end
+    if v102 then
+        v104[1] = v5.RenderStepped:Connect(v120)
+    end
+end
+
+v11:Toggle({
+    Title = "高亮NPC",
+    Value = false,
+    FeatureName = "npc_highlight",
+    ConfigKey = "npc_highlight",
+    Tooltip = "高亮NPC",
+    Callback = function(v146)
+        v102 = v146
+        if v146 then v137() else v108() end
+    end
+})
+
+v11:Toggle({
+    Title = "高亮玩家",
+    Value = false,
+    FeatureName = "player_esp",
+    ConfigKey = "player_esp",
+    Tooltip = "高亮玩家",
+    Callback = function(v147)
+        if v147 then
+            if not v102 then v137() end
+            v102 = true
+        else
+            local v148 = false
+            for _, v149 in pairs(v3:GetPlayers()) do
+                if v149 ~= v4 and v149.Character then
+                    local v150 = v106[v149]
+                    if v150 then
+                        v148 = true
+                        break
+                    end
+                end
+            end
+            if not v148 then
+                v108()
+                v102 = false
+            end
+        end
+    end
+})
+
+v11:Slider({
+    Title = "最大显示距离",
+    Value = { Min = 100, Max = 400, Default = 200 },
+    FeatureName = "esp_range",
+    ConfigKey = "esp_range",
+    Tooltip = "显示距离",
+    Callback = function(v151)
+        v103 = v151
+    end
+})
+
+local v152 = false
+local v153 = {}
+local v154 = {}
+
+local function v155()
+    if v153.foodConn then v153.foodConn:Disconnect() end
+    for _, v156 in pairs(v153) do
+        if type(v156) ~= "function" and v156 and v156.Parent then v156:Destroy() end
+    end
+    v153 = {}
+end
+
+local function v157()
+    local v121 = v55()
+    if not v121 then return end
+    for _, v158 in ipairs(v35:GetChildren()) do
+        if v158:IsA("BasePart") or v158:IsA("Model") then
+            local v159 = v153[v158]
+            if not v159 then
+                local v160 = Instance.new("BillboardGui")
+                v160.Name = "FoodESP"
+                v160.Size = UDim2.new(0, 140, 0, 40)
+                v160.StudsOffset = Vector3.new(0, 2, 0)
+                v160.AlwaysOnTop = true
+                local v161 = Instance.new("TextLabel")
+                v161.Name = "NameLabel"
+                v161.Size = UDim2.new(1, 0, 0.5, 0)
+                v161.BackgroundTransparency = 1
+                v161.TextColor3 = Color3.fromRGB(255, 255, 0)
+                v161.TextStrokeTransparency = 0
+                v161.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                v161.Font = Enum.Font.GothamBold
+                v161.TextSize = 12
+                v161.Text = v158.Name
+                v161.Parent = v160
+                local v162 = Instance.new("TextLabel")
+                v162.Name = "DistLabel"
+                v162.Size = UDim2.new(1, 0, 0.5, 0)
+                v162.Position = UDim2.new(0, 0, 0.5, 0)
+                v162.BackgroundTransparency = 1
+                v162.TextColor3 = Color3.fromRGB(255, 255, 255)
+                v162.TextStrokeTransparency = 0
+                v162.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                v162.Font = Enum.Font.GothamBold
+                v162.TextSize = 12
+                v162.Text = "0"
+                v162.Parent = v160
+                v160.Parent = v158
+                v153[v158] = v160
+            end
+            local v163 = v153[v158]
+            local v164 = v58(v158)
+            local v165 = (v164 - v121).Magnitude
+            local v166 = v163:FindFirstChild("DistLabel")
+            if v166 then
+                if v165 <= v103 then
+                    local v167 = 12 + math.floor((1 - v165 / v103) * 8)
+                    v167 = math.clamp(v167, 12, 20)
+                    v166.TextSize = v167
+                    v166.Text = string.format("%.1f", v165)
+                else
+                    v166.Text = "超出可渲染距离"
+                    v166.TextSize = 12
+                end
+            end
+            local v168, v169 = v6:WorldToViewportPoint(v164)
+            if v169 then
+                v163.Position = UDim2.new(0, v168.X - v163.AbsoluteSize.X/2, 0, v168.Y - v163.AbsoluteSize.Y - 20)
+                v163.Visible = true
+            else
+                v163.Visible = false
+            end
+        end
+    end
+end
+
+v12:Toggle({
+    Title = "食物ESP",
+    Value = false,
+    FeatureName = "food_esp",
+    ConfigKey = "food_esp",
+    Tooltip = "高亮食物",
+    Callback = function(v170)
+        v152 = v170
+        if v170 then
+            if v153.foodConn then v153.foodConn:Disconnect() end
+            v153.foodConn = v5.RenderStepped:Connect(v157)
+        else
+            v155()
+        end
+    end
+})
+
+local function v171()
+    if not v49 then v50() end
+    if v49 then
+        pcall(function()
+            if v52 == "传送" then
+                local v172 = v4.Character
+                local v173 = v172 and v172:FindFirstChild("HumanoidRootPart")
+                if v173 then
+                    local v174 = v58(v49)
+                    v173.CFrame = CFrame.new(v174)
+                    task.wait(0.2)
+                end
+            end
+            v48:FireServer(v49)
+        end)
+    end
+end
+
+v13:Button({
+    Text = "隐藏自己",
+    Tooltip = "隐藏自己",
+    Callback = v171
+})
+
+v13:Dropdown({
+    Title = "隐藏模式",
+    Values = { "远程", "传送" },
+    Value = "远程",
+    FeatureName = "hide_mode",
+    ConfigKey = "hide_mode",
+    Tooltip = "隐藏模式",
+    Callback = function(v175)
+        v52 = v175
+    end
+})
+
+local function v176()
+    if v34 then task.cancel(v34) v34 = nil end
+end
+
+local function v177()
+    if v34 then return end
+    v34 = task.spawn(function()
+        while v33 do
+            local v178 = {}
+            local function v179(v180)
+                for _, v181 in ipairs(v180:GetDescendants()) do
+                    if v181.Name == "Mountains" or v181.Name == "Central Rockfaces" then
+                        for _, v182 in ipairs(v181:GetDescendants()) do
+                            if v182.Name:lower():find("prompt") then
+                                table.insert(v178, v182)
+                            end
+                        end
+                    end
+                end
+            end
+            v179(v42)
+            for _, v183 in ipairs(v178) do
+                if v183 and v183.Parent then
+                    local v184 = v4.Character
+                    local v185 = v184 and v184:FindFirstChild("HumanoidRootPart")
+                    if v185 then
+                        local v186 = v58(v183)
+                        v185.CFrame = CFrame.new(v186)
+                        task.wait(0.2)
+                        v7:SendKeyEvent(true, Enum.KeyCode.F15, false, game)
+                        task.wait(0.05)
+                        v7:SendKeyEvent(false, Enum.KeyCode.F15, false, game)
+                        task.wait(0.2)
+                    end
+                end
+            end
+            task.wait(1)
+        end
+        v34 = nil
+    end)
+end
+
+v14:Toggle({
+    Title = "自动收集蘑菇",
+    Value = false,
+    FeatureName = "auto_mushroom",
+    ConfigKey = "auto_mushroom",
+    Tooltip = "自动收集蘑菇",
+    Callback = function(v187)
+        v33 = v187
+        if v187 then v177() else v176() end
+    end
+})
+
+v2.InputBegan:Connect(function(v188, v189)
+    if v189 then return end
+    if v188.KeyCode == Enum.KeyCode.F1 then
+        local v190 = not v8.Visible
+        v8:SetVisible(v190)
+    end
+end)
+
+v1:Notify({ Title = "TrashHub", Content = "加载完成", Duration = 4 })
