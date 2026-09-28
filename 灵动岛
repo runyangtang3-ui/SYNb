@@ -72,6 +72,7 @@ local songList = {
 
 -- ============ 服务器脚本列表 ============
 local serverList = {
+    {"排球传奇", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/%E6%8E%92%E7%90%83%E4%BC%A0%E5%A5%87.lua"},
     {"最坚强的战场", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E6%9C%80%E5%9D%9A%E5%BC%BA"},
     {"TTK枪战服务器", "https://raw.githubusercontent.com/runyangtang3-ui/jjb/refs/heads/main/TT%E6%B5%8B%E8%AF%95.lua"},
     {"CS go", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E5%A4%A9%E7%BD%A1.lua"},
@@ -492,7 +493,6 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 title.ZIndex = 25
 title.Parent = menu
 
--- 当前播放显示
 local nowPlaying = Instance.new("TextLabel")
 nowPlaying.Size = UDim2.new(1, -20, 0, 26)
 nowPlaying.Position = UDim2.new(0, 10, 0, 34)
@@ -509,7 +509,7 @@ local npC = Instance.new("UICorner")
 npC.CornerRadius = UDim.new(0, 8)
 npC.Parent = nowPlaying
 
--- 音乐入口按钮
+-- 音乐入口
 local musicEntry = Instance.new("TextButton")
 musicEntry.Size = UDim2.new(1, -20, 0, 40)
 musicEntry.Position = UDim2.new(0, 10, 0, 70)
@@ -532,7 +532,7 @@ meStroke.Color = Color3.fromRGB(150, 130, 255)
 meStroke.Transparency = 0.5
 meStroke.Parent = musicEntry
 
--- 服务器入口按钮
+-- 服务器入口
 local serverEntry = Instance.new("TextButton")
 serverEntry.Size = UDim2.new(1, -20, 0, 40)
 serverEntry.Position = UDim2.new(0, 10, 0, 118)
@@ -555,7 +555,6 @@ seStroke.Color = Color3.fromRGB(200, 100, 255)
 seStroke.Transparency = 0.5
 seStroke.Parent = serverEntry
 
--- hover 效果
 musicEntry.MouseEnter:Connect(function()
     TweenService:Create(musicEntry, TweenInfo.new(0.15), { BackgroundTransparency = 0.05 }):Play()
     TweenService:Create(meStroke, TweenInfo.new(0.15), { Transparency = 0.2 }):Play()
@@ -604,7 +603,6 @@ for i = 1, 20 do
     c.Parent = star
 end
 
--- 音乐面板顶栏
 local mpTopBar = Instance.new("Frame")
 mpTopBar.Size = UDim2.new(1, 0, 0, 34)
 mpTopBar.BackgroundTransparency = 1
@@ -639,7 +637,6 @@ mpTitle.TextXAlignment = Enum.TextXAlignment.Left
 mpTitle.ZIndex = 33
 mpTitle.Parent = mpTopBar
 
--- 当前歌曲（音乐面板内）
 local mpNowPlaying = Instance.new("TextLabel")
 mpNowPlaying.Size = UDim2.new(1, -16, 0, 30)
 mpNowPlaying.Position = UDim2.new(0, 8, 0, 40)
@@ -656,7 +653,6 @@ local mpnpC = Instance.new("UICorner")
 mpnpC.CornerRadius = UDim.new(0, 8)
 mpnpC.Parent = mpNowPlaying
 
--- 播放控制
 local mpCtrl = Instance.new("Frame")
 mpCtrl.Size = UDim2.new(1, -16, 0, 46)
 mpCtrl.Position = UDim2.new(0, 8, 0, 76)
@@ -971,7 +967,6 @@ local function playByIndex(idx)
     mpPlay.Text = "❚❚"
     mpNowPlaying.Text = "♪ " .. song[2]
     nowPlaying.Text = "♪ " .. song[2]
-    -- 收起时显示音符图标
     if not isExpanded then
         starHolder.Visible = false
         musicIcon.Visible = true
