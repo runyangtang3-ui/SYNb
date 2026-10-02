@@ -72,6 +72,7 @@ local songList = {
 
 -- ============ 服务器脚本列表 ============
 local serverList = {
+    {"偷一个蛋", "https://raw.githubusercontent.com/insanecontenty2k-blip/scriptss/main/universalscriptsofop"},
     {"排球传奇", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/%E6%8E%92%E7%90%83%E4%BC%A0%E5%A5%87.lua"},
     {"最坚强的战场", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E6%9C%80%E5%9D%9A%E5%BC%BA"},
     {"TTK枪战服务器", "https://raw.githubusercontent.com/runyangtang3-ui/jjb/refs/heads/main/TT%E6%B5%8B%E8%AF%95.lua"},
