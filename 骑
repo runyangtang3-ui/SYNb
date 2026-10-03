@@ -1,98 +1,42 @@
---[[ ╔══════════════════════════════════════════════════════════════════╗
-     ║ 渲染蛋 ESP + 飞行                                                 ║
-     ║                                                                  ║
-     ║ • 透视 workspace.RenderedEggs 内的所有模型                        ║
-     ║ • 任意距离显示名称 + 距离                                         ║
-     ║ • 按名称分组蛋                                                    ║
-     ║ • 折叠 / 展开分组                                                 ║
-     ║ • 全局 ESP 开/关                                                  ║
-     ║ • 基于稀有度的 ESP 筛选                                           ║
-     ║ • 搜索蛋                                                         ║
-     ║ • 飞向蛋（火山/自动农场先传送，然后无碰撞飞行）                    ║
-     ║ • 可拖动和调整大小的菜单                                          ║
-     ║ • 自动检测新生成的蛋                                              ║
-     ║ • 使用 Data.Owner 自动查找 LocalPlayer 的地块                     ║
-     ║ • workspace.Plots 最多扫描 2 次                                   ║
-     ║ • 可配置飞行速度 100-500                                          ║
-     ║ • 脚本端无传送距离限制                                            ║
-     ║ • 拾取修复：解析顶层蛋模型，等待 ProximityPrompt，                 ║
-     ║   模糊匹配其名称，未命中时调试转储                                 ║
-     ╚══════════════════════════════════════════════════════════════════╝ ]]
+--[[ ╔══════════════════════════════════════════════════════════════╗
+     ║  红星中心骑宠物                                               ║
+     ║  渲染蛋 ESP + 飞行 + 自动农场  (WindUI 版)                    ║
+     ╚══════════════════════════════════════════════════════════════╝ ]]
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
+--===== 加载 WindUI =====
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+WindUI.TransparencyValue = 0.2
+WindUI:SetTheme("Dark")
+
+--===== 场景对象 =====
 local RenderedEggs = workspace:FindFirstChild("RenderedEggs")
 local Plots = workspace:FindFirstChild("Plots")
-
 if not RenderedEggs then
-	warn("[蛋 ESP] 未找到 workspace.RenderedEggs")
+	warn("[红星中心骑宠物] 未找到 workspace.RenderedEggs")
 	return
 end
 
-if not Plots then
-	warn("[蛋 ESP] 未找到 workspace.Plots")
-end
-
---==============================================================
--- 设置
---==============================================================
-local UPDATE_RATE = 0.20
-
--- 物体上方的实际高度
-local HEIGHT_OFFSET = 10
-local SHOW_HIGHLIGHT = true
-
-local ESPDisplayMode = "Name + Rarity" -- Name / Rarity / Name + Rarity
-
-local SUPER_OPTIMIZE = false
-local setSuperOptimization
-local refreshESPDisplay
-local applySuperOptimization
-
--- 飞行设置
-local FlySpeed = 250
-local MIN_FLY_SPEED = 100
-local MAX_FLY_SPEED = 500
-local APPROACH_DISTANCE = 1 -- 飞行直到角色距离蛋这么多 stud
-local STAGE_HEIGHT = 15 -- 先传送到蛋上方此高度，然后无碰撞飞下去
-local PICKUP_CONFIRM_TIMEOUT = 4 -- 拾取触发后等待蛋消失的秒数
-local FlyToPlotAfterEgg = true
-
--- 拾取设置
-local PICKUP_WAIT_TIMEOUT = 2
-
--- 自动农场设置
-local AutoFarmEnabled = false
-local AutoFarmTargetAll = true
-local AutoFarmTargets = {}
-local AutoFarmBusy = false
-local AutoFarmToken = 0
-local AutoFarmDelay = 0.12
-local runAutoFarm = nil
-
---==============================================================
--- 手动稀有度配置
---==============================================================
--- 顺序从最高 -> 最低。
--- 只需编辑此表，无需 workspace.EggSpawns。
--- Order 越小 = 在 GUI 中位置越高。
+--===== 稀有度配置（可自行修改）=====
 local RARITY_CONFIG = {
-	{ Name = "Etheral", Order = 1, Color = Color3.fromRGB(170, 170, 255), Eggs = { "BlackHole Egg", "Solaris Egg", "Cherub Egg", "Volcanic Egg" } },
-	{ Name = "Divine", Order = 2, Color = Color3.fromRGB(95, 190, 255), Eggs = { "Aurora Egg", "Galaxy Egg", "Bloom Egg" } },
-	{ Name = "Mythical", Order = 3, Color = Color3.fromRGB(255, 170, 255), Eggs = { "Diamond Egg", "Crystal Egg", "Skull Egg", "Asteroid Egg", "Dominus Egg", "Flaming Egg", "Sinister Egg", "Soul Egg", "Tidal Egg" } },
-	{ Name = "Legendary", Order = 4, Color = Color3.fromRGB(255, 170, 0), Eggs = { "Glass Egg", "Golden Egg" } },
-	{ Name = "Epic", Order = 5, Color = Color3.fromRGB(170, 85, 255), Eggs = { "Mushroom Egg", "Flower Egg", "Slime Egg", "Ice Egg" } },
-	{ Name = "Rare", Order = 6, Color = Color3.fromRGB(0, 170, 255), Eggs = { "Cracked Egg", "Easter Egg", "Stone Egg", "Leaf Egg" } },
-	{ Name = "Common", Order = 7, Color = Color3.fromRGB(173, 173, 173), Eggs = { "White Egg", "Brown Egg" } }
+	{ Name = "Etheral",   Order = 1, Color = Color3.fromRGB(170,170,255), Eggs = { "BlackHole Egg","Solaris Egg","Cherub Egg","Volcanic Egg" } },
+	{ Name = "Divine",    Order = 2, Color = Color3.fromRGB(95,190,255),  Eggs = { "Aurora Egg","Galaxy Egg","Bloom Egg" } },
+	{ Name = "Mythical",  Order = 3, Color = Color3.fromRGB(255,170,255), Eggs = { "Diamond Egg","Crystal Egg","Skull Egg","Asteroid Egg","Dominus Egg","Flaming Egg","Sinister Egg","Soul Egg","Tidal Egg" } },
+	{ Name = "Legendary", Order = 4, Color = Color3.fromRGB(255,170,0),   Eggs = { "Glass Egg","Golden Egg" } },
+	{ Name = "Epic",      Order = 5, Color = Color3.fromRGB(170,85,255),  Eggs = { "Mushroom Egg","Flower Egg","Slime Egg","Ice Egg" } },
+	{ Name = "Rare",      Order = 6, Color = Color3.fromRGB(0,170,255),   Eggs = { "Cracked Egg","Easter Egg","Stone Egg","Leaf Egg" } },
+	{ Name = "Common",    Order = 7, Color = Color3.fromRGB(173,173,173), Eggs = { "White Egg","Brown Egg" } },
 }
 
 local RarityByName = {}
 local RarityByEggName = {}
-
 for _, info in ipairs(RARITY_CONFIG) do
 	RarityByName[string.lower(info.Name)] = info
 	for _, eggName in ipairs(info.Eggs or {}) do
@@ -101,906 +45,1389 @@ for _, info in ipairs(RARITY_CONFIG) do
 end
 
 local SelectedRarities = {}
-for _, rarityInfo in ipairs(RARITY_CONFIG) do
-	SelectedRarities[string.lower(rarityInfo.Name)] = true
+for _, info in ipairs(RARITY_CONFIG) do
+	SelectedRarities[string.lower(info.Name)] = true
 end
 
 local function getManualRarity(name)
 	if not name then return nil end
-
 	local key = string.lower(tostring(name))
-
-	-- 优先精确匹配已输入的蛋名称。
-	local exactEgg = RarityByEggName[key]
-	if exactEgg then return exactEgg end
-
-	-- 允许模型名称有额外后缀/前缀但仍匹配蛋名称。
+	local exact = RarityByEggName[key]
+	if exact then return exact end
 	for eggName, info in pairs(RarityByEggName) do
-		if string.find(key, eggName, 1, true) then
-			return info
-		end
+		if string.find(key, eggName, 1, true) then return info end
 	end
-
 	return nil
 end
 
---==============================================================
--- 状态
---==============================================================
+--===== 状态 =====
 local Running = true
 local GlobalESPEnabled = true
+local ESPDisplayMode = "Name + Rarity"
+local UPDATE_RATE = 0.20
+local HEIGHT_OFFSET = 10
+local SHOW_HIGHLIGHT = true
+
+local FlySpeed = 250
+local MIN_FLY_SPEED = 100
+local MAX_FLY_SPEED = 500
+local APPROACH_DISTANCE = 1
+local STAGE_HEIGHT = 15
+local PICKUP_CONFIRM_TIMEOUT = 4
+local FlyToPlotAfterEgg = true
+local PICKUP_WAIT_TIMEOUT = 2
+
+local AutoFarmEnabled = false
+local AutoFarmTargetAll = true
+local AutoFarmTargets = {}
+local AutoFarmBusy = false
+local AutoFarmToken = 0
+local AutoFarmDelay = 0.12
 
 local ESPs = {}
 local EggEntries = {}
-local EggGroups = {}
 local Connections = {}
-
-local Character = nil
-local RootPart = nil
-
-local PlotScanCount = 0
-local CachedMyPlot = nil
-local CachedBaseplate = nil
+local Character, RootPart
+local PlotScanCount, CachedMyPlot, CachedBaseplate = 0, nil, nil
 local MAX_PLOT_SCANS = 2
-
-local updateSearch = nil
-local getEggTopCFrame = nil
-local safeTeleport = nil
-local flyToTarget = nil
-local getMyPlotBaseplate = nil
-local getBaseplateTopCFrame = nil
-
 local FlyBusy = false
 local FlyCancelToken = 0
 
--- 前向声明（之前泄露为全局变量）
-local showStatus = nil
-local shutdown = nil
-local getEggPickupPrompt = nil
-local instantPickupEgg = nil
-local debugEggHierarchy = nil
+local updateSearch, getEggTopCFrame, safeTeleport, flyToTarget
+local getMyPlotBaseplate, getBaseplateTopCFrame
+local showStatus, shutdown, getEggPickupPrompt, instantPickupEgg, debugEggHierarchy
+local runAutoFarm, refreshESPDisplay
 
---==============================================================
--- 工具函数
---==============================================================
-local function isFiniteNumber(value)
-	return typeof(value) == "number" and value == value and value > -math.huge and value < math.huge
+--===== 工具 =====
+local function isFiniteNumber(v)
+	return typeof(v) == "number" and v == v and v > -math.huge and v < math.huge
 end
-
-local function isValidPosition(position)
-	if typeof(position) ~= "Vector3" then return false end
-	return isFiniteNumber(position.X) and isFiniteNumber(position.Y) and isFiniteNumber(position.Z)
+local function isValidPosition(p)
+	if typeof(p) ~= "Vector3" then return false end
+	return isFiniteNumber(p.X) and isFiniteNumber(p.Y) and isFiniteNumber(p.Z)
 end
-
 local function getCharacter()
 	Character = LocalPlayer.Character
-	if not Character then
-		RootPart = nil
-		return nil
-	end
-	RootPart = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
+	if not Character then RootPart = nil; return nil end
+	RootPart = Character:FindFirstChild("HumanoidRootPart")
+		or Character:FindFirstChild("UpperTorso")
+		or Character:FindFirstChild("Torso")
 	return Character
 end
-
 getCharacter()
 
---==============================================================
--- 角色
---==============================================================
-Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(function(character)
-	Character = character
-	RootPart = character:WaitForChild("HumanoidRootPart", 10)
+Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(function(c)
+	Character = c
+	RootPart = c:WaitForChild("HumanoidRootPart", 10)
 end)
 
---==============================================================
--- 查找根部件
---==============================================================
 local function getRootPart(model)
 	if not model or not model:IsA("Model") then return nil end
-	if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then
-		return model.PrimaryPart
-	end
-	local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("RootPart") or model:FindFirstChild("Handle")
-	if root and root:IsA("BasePart") then
-		return root
-	end
+	if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then return model.PrimaryPart end
+	local r = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("RootPart") or model:FindFirstChild("Handle")
+	if r and r:IsA("BasePart") then return r end
 	return model:FindFirstChildWhichIsA("BasePart", true)
 end
 
--- 返回直接位于 RenderedEggs 下的顶层 Model。
--- 防止将嵌套子模型（配件、网格组……）注册为单独的蛋，
--- 而 ProximityPrompt 位于父级上。
 local function resolveEggModel(model)
 	local top = model
-	local parent = model.Parent
-	while parent and parent ~= RenderedEggs and parent:IsDescendantOf(RenderedEggs) do
-		if parent:IsA("Model") then
-			top = parent
-		end
-		parent = parent.Parent
+	local p = model.Parent
+	while p and p ~= RenderedEggs and p:IsDescendantOf(RenderedEggs) do
+		if p:IsA("Model") then top = p end
+		p = p.Parent
 	end
 	return top
 end
 
--- 最近接近点：蛋真实顶部（包围盒）上方 APPROACH_DISTANCE stud。
 local function getEggHoverPosition(model)
-	local ok, cf, size = pcall(function()
-		return model:GetBoundingBox()
-	end)
-	if ok and typeof(cf) == "CFrame" and typeof(size) == "Vector3" and isValidPosition(cf.Position) and isFiniteNumber(size.Y) then
+	local ok, cf, size = pcall(function() return model:GetBoundingBox() end)
+	if ok and typeof(cf) == "CFrame" and typeof(size) == "Vector3"
+		and isValidPosition(cf.Position) and isFiniteNumber(size.Y) then
 		return cf.Position + Vector3.new(0, size.Y * 0.5 + APPROACH_DISTANCE, 0)
 	end
-	local root = getRootPart(model)
-	if root then
-		return root.Position + Vector3.new(0, APPROACH_DISTANCE, 0)
-	end
+	local r = getRootPart(model)
+	if r then return r.Position + Vector3.new(0, APPROACH_DISTANCE, 0) end
 	return nil
 end
 
--- UI 辅助函数（保持主块在 Luau 的 200 局部变量限制以下）
-local function addCorner(parent, radius)
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = radius
-	corner.Parent = parent
+local function getEggTypeEnabled(model)
+	if not model then return false end
+	local info = getManualRarity(model.Name)
+	if not info then return true end
+	return SelectedRarities[string.lower(tostring(info.Name))] ~= false
 end
 
-local function addPadding(parent, left)
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, left)
-	pad.Parent = parent
+--===== WindUI 窗口（名字：红星中心骑宠物）=====
+local Window = WindUI:CreateWindow({
+	Title = "红星中心骑宠物",
+	Icon = "rbxassetid://136469174415866",
+	Author = "红星",
+	Folder = "HongXingCenter",
+	Size = UDim2.fromOffset(720, 500),
+	Theme = "Dark",
+	SideBarWidth = 220,
+	ScrollBarEnabled = true
+})
+
+Window:EditOpenButton({
+	Title = "红星中心骑宠物",
+	CornerRadius = UDim.new(4,16),
+	StrokeThickness = 0.75,
+	Draggable = true,
+})
+
+-- 顶部按钮：主题切换
+Window:CreateTopbarButton("theme-switcher", "moon", function()
+	WindUI:SetTheme(WindUI:GetCurrentTheme() == "Dark" and "Light" or "Dark")
+	WindUI:Notify({
+		Title = "主题已更改",
+		Content = "当前主题：" .. WindUI:GetCurrentTheme(),
+		Duration = 2
+	})
+end, 990)
+
+--===== 渐变边框（保留模板效果）=====
+local function createGradientBorder(window)
+	local mainFrame = window.UIElements.Main
+	if not mainFrame then return nil end
+	local existing = mainFrame:FindFirstChild("GradientStroke")
+	if existing then existing:Destroy() end
+	if not mainFrame:FindFirstChildOfClass("UICorner") then
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 16)
+		corner.Parent = mainFrame
+	end
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "GradientStroke"
+	stroke.Thickness = 2
+	stroke.Color = Color3.new(1,1,1)
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = mainFrame
+	local grad = Instance.new("UIGradient")
+	grad.Name = "GlowEffect"
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 214, 10)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 60, 60))
+	})
+	grad.Rotation = 0
+	grad.Parent = stroke
+	return stroke
 end
 
---==============================================================
--- GUI
---==============================================================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RenderedEggESP"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = PlayerGui
+local borderAnimation
+local borderEnabled = true
+local animationSpeed = 3
 
---==============================================================
--- 主窗口
---==============================================================
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.new(0, 430, 0, 560)
-Main.AnchorPoint = Vector2.new(0.5, 0.5)
-Main.Position = UDim2.new(0.5, 0, 0.5, 0)
-Main.BackgroundColor3 = Color3.fromRGB(22, 23, 30)
-Main.BorderSizePixel = 0
-Main.ClipsDescendants = true
-Main.Parent = ScreenGui
-
-local MainExpandedSize = Main.Size
-local MainMinimized = false
-local MINIMIZED_HEIGHT = 56
-local MIN_MENU_WIDTH = 430
-local MIN_MENU_HEIGHT = 400
-local MAX_MENU_WIDTH = 640
-local MAX_MENU_HEIGHT = 760
-
--- UI 缩放
-local MainScale = Instance.new("UIScale")
-MainScale.Scale = 0.9
-MainScale.Parent = Main
-
-local function updateMainScale()
-	local camera = workspace.CurrentCamera
-	if not camera then return end
-	local viewport = camera.ViewportSize
-	local baseWidth = math.max(Main.Size.X.Offset, 1)
-	local baseHeight = math.max(Main.Size.Y.Offset, 1)
-
-	-- 缩放整个 GUI 以适应当前设备，同时保持其宽高比。
-	-- 当玩家在竖屏和横屏之间旋转时这也有效。
-	local availableWidth = math.max(viewport.X - 20, 1)
-	local availableHeight = math.max(viewport.Y - 20, 1)
-	local scale = math.min(availableWidth / baseWidth, availableHeight / baseHeight, 0.9)
-
-	-- 防止 GUI 在小屏幕上变得无法使用地小。
-	MainScale.Scale = math.clamp(scale, 0.40, 0.90)
+local function startBorderAnimation(window, speed)
+	local mainFrame = window.UIElements.Main
+	if not mainFrame then return nil end
+	local stroke = mainFrame:FindFirstChild("GradientStroke")
+	if not stroke then return nil end
+	local grad = stroke:FindFirstChild("GlowEffect")
+	if not grad then return nil end
+	local conn = RunService.Heartbeat:Connect(function()
+		if not stroke or stroke.Parent == nil then conn:Disconnect() return end
+		grad.Rotation = (tick() * speed * 60) % 360
+	end)
+	return conn
 end
 
-updateMainScale()
-
-if workspace.CurrentCamera then
-	Connections.ViewportSize = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMainScale)
+local function reinitializeBorder()
+	if borderAnimation then borderAnimation:Disconnect() borderAnimation = nil end
+	local s = createGradientBorder(Window)
+	if s and borderEnabled then borderAnimation = startBorderAnimation(Window, animationSpeed) end
 end
 
-addCorner(Main, UDim.new(0, 14))
+createGradientBorder(Window)
+if borderEnabled then borderAnimation = startBorderAnimation(Window, animationSpeed) end
 
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(75, 78, 100)
-MainStroke.Thickness = 1.5
-MainStroke.Transparency = 0.2
-MainStroke.Parent = Main
-
-local ResizeHandle = Instance.new("TextButton")
-ResizeHandle.Size = UDim2.new(0, 32, 0, 32)
-ResizeHandle.AnchorPoint = Vector2.new(1, 1)
-ResizeHandle.Position = UDim2.new(1, -6, 1, -6)
-ResizeHandle.BackgroundColor3 = Color3.fromRGB(62, 64, 82)
-ResizeHandle.Text = ">"
-ResizeHandle.TextColor3 = Color3.fromRGB(240, 240, 248)
-ResizeHandle.Font = Enum.Font.GothamBold
-ResizeHandle.TextSize = 16
-ResizeHandle.ZIndex = 5
-ResizeHandle.Parent = Main
-addCorner(ResizeHandle, UDim.new(0, 8))
---==============================================================
--- 顶栏
---==============================================================
-local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 56)
-TopBar.BackgroundColor3 = Color3.fromRGB(35, 36, 48)
-TopBar.BorderSizePixel = 0
-TopBar.ClipsDescendants = true
-TopBar.Parent = Main
-addCorner(TopBar, UDim.new(0, 14))
-
-local Accent = Instance.new("Frame")
-Accent.Size = UDim2.new(0, 5, 1, -18)
-Accent.Position = UDim2.new(0, 9, 0, 9)
-Accent.BackgroundColor3 = Color3.fromRGB(110, 130, 255)
-Accent.BorderSizePixel = 0
-Accent.Parent = TopBar
-addCorner(Accent, UDim.new(1, 0))
-
-local Title = Instance.new("TextLabel")
-Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0, 25, 0, 7)
-Title.Size = UDim2.new(1, -140, 0, 24)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 17
-Title.TextColor3 = Color3.fromRGB(245, 245, 255)
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Text = "渲染蛋"
-Title.Parent = TopBar
-
-local Minimize = Instance.new("TextButton")
-Minimize.Size = UDim2.new(0, 36, 0, 36)
-Minimize.Position = UDim2.new(1, -85, 0, 10)
-Minimize.BackgroundColor3 = Color3.fromRGB(62, 64, 82)
-Minimize.Text = "-"
-Minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
-Minimize.Font = Enum.Font.GothamBold
-Minimize.TextSize = 20
-Minimize.Parent = TopBar
-addCorner(Minimize, UDim.new(0, 9))
-
-local Close = Instance.new("TextButton")
-Close.Size = UDim2.new(0, 36, 0, 36)
-Close.Position = UDim2.new(1, -45, 0, 10)
-Close.BackgroundColor3 = Color3.fromRGB(180, 60, 70)
-Close.Text = "X"
-Close.TextColor3 = Color3.fromRGB(255, 255, 255)
-Close.Font = Enum.Font.GothamBold
-Close.TextSize = 20
-Close.Parent = TopBar
-addCorner(Close, UDim.new(0, 9))
-
---==============================================================
--- 标签页 / 页面
---==============================================================
-local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1, -24, 0, 42)
-TabBar.Position = UDim2.new(0, 12, 0, 61)
-TabBar.BackgroundTransparency = 1
-TabBar.Parent = Main
-
-local EggsTab = Instance.new("TextButton")
-EggsTab.Size = UDim2.new(0.5, -4, 1, 0)
-EggsTab.Position = UDim2.new(0, 0, 0, 0)
-EggsTab.BackgroundColor3 = Color3.fromRGB(75, 95, 180)
-EggsTab.Text = "蛋"
-EggsTab.TextColor3 = Color3.fromRGB(255,255,255)
-EggsTab.Font = Enum.Font.GothamBold
-EggsTab.TextSize = 12
-EggsTab.Parent = TabBar
-addCorner(EggsTab, UDim.new(0, 9))
-
-local SettingsTab = Instance.new("TextButton")
-SettingsTab.Size = UDim2.new(0.5, -4, 1, 0)
-SettingsTab.Position = UDim2.new(0.5, 4, 0, 0)
-SettingsTab.BackgroundColor3 = Color3.fromRGB(42, 43, 55)
-SettingsTab.Text = "设置"
-SettingsTab.TextColor3 = Color3.fromRGB(180,183,198)
-SettingsTab.Font = Enum.Font.GothamBold
-SettingsTab.TextSize = 12
-SettingsTab.Parent = TabBar
-addCorner(SettingsTab, UDim.new(0, 9))
-
-local EggsPage = Instance.new("Frame")
-EggsPage.Name = "EggsPage"
-EggsPage.Size = UDim2.new(1, -24, 0, 447)
-EggsPage.Position = UDim2.new(0, 12, 0, 109)
-EggsPage.BackgroundTransparency = 1
-EggsPage.Parent = Main
-
-local SettingsPage = Instance.new("ScrollingFrame")
-SettingsPage.Name = "SettingsPage"
-SettingsPage.Size = UDim2.new(1, -24, 0, 447)
-SettingsPage.Position = UDim2.new(0, 12, 0, 109)
-SettingsPage.BackgroundTransparency = 1
-SettingsPage.BorderSizePixel = 0
-SettingsPage.ScrollBarThickness = 4
-SettingsPage.Visible = false
-SettingsPage.CanvasSize = UDim2.new(0,0,0,0)
-SettingsPage.Parent = Main
-
-local function setActiveTab(which)
-	local eggs = which == "Eggs"
-	EggsPage.Visible = eggs
-	SettingsPage.Visible = not eggs
-	EggsTab.BackgroundColor3 = eggs and Color3.fromRGB(75,95,180) or Color3.fromRGB(42,43,55)
-	SettingsTab.BackgroundColor3 = eggs and Color3.fromRGB(42,43,55) or Color3.fromRGB(75,95,180)
-	EggsTab.TextColor3 = eggs and Color3.fromRGB(255,255,255) or Color3.fromRGB(180,183,198)
-	SettingsTab.TextColor3 = eggs and Color3.fromRGB(180,183,198) or Color3.fromRGB(255,255,255)
+--===== 通知辅助 =====
+showStatus = function(msg, dur)
+	WindUI:Notify({
+		Title = "红星中心骑宠物",
+		Content = tostring(msg),
+		Icon = "info",
+		Duration = dur or 3
+	})
 end
+--==============================================================
+-- 窗口结构（区块 + 标签页）
+--==============================================================
+local Tabs = {
+	Main = Window:Section({ Title = "功能", Opened = true }),
+	Settings = Window:Section({ Title = "设置", Opened = true }),
+	Utilities = Window:Section({ Title = "工具", Opened = true }),
+}
 
-EggsTab.MouseButton1Click:Connect(function() setActiveTab("Eggs") end)
-SettingsTab.MouseButton1Click:Connect(function() setActiveTab("Settings") end)
+local TabHandles = {
+	Eggs = Tabs.Main:Tab({ Title = "蛋列表", Icon = "home" }),
+	Fly = Tabs.Main:Tab({ Title = "飞行", Icon = "plane" }),
+	Farm = Tabs.Main:Tab({ Title = "自动农场", Icon = "tractor" }),
+	Rarity = Tabs.Settings:Tab({ Title = "稀有度过滤", Icon = "filter" }),
+	Appearance = Tabs.Settings:Tab({ Title = "外观", Icon = "brush" }),
+	Border = Tabs.Settings:Tab({ Title = "边框设置", Icon = "square" }),
+	Config = Tabs.Utilities:Tab({ Title = "配置", Icon = "settings" }),
+}
 
 --==============================================================
--- 控制按钮
+-- 蛋列表页
 --==============================================================
-local GlobalToggle = Instance.new("TextButton")
-GlobalToggle.Size = UDim2.new(0, 125, 0, 38)
-GlobalToggle.Position = UDim2.new(0, 12, 0, 69)
-GlobalToggle.BackgroundColor3 = Color3.fromRGB(60, 155, 95)
-GlobalToggle.Text = "ESP | 开"
-GlobalToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-GlobalToggle.Font = Enum.Font.GothamBold
-GlobalToggle.TextSize = 12
-GlobalToggle.Parent = Main
-addCorner(GlobalToggle, UDim.new(0, 9))
+TabHandles.Eggs:Paragraph({
+	Title = "渲染蛋 ESP",
+	Desc = "透视 workspace.RenderedEggs 内的所有蛋，可传送/飞行",
+	Image = "info",
+	ImageSize = 20,
+	Color = "White",
+})
 
-local PlotTP = Instance.new("TextButton")
-PlotTP.Size = UDim2.new(0, 140, 0, 38)
-PlotTP.Position = UDim2.new(0, 145, 0, 69)
-PlotTP.BackgroundColor3 = Color3.fromRGB(78, 100, 185)
-PlotTP.Text = "我的地块"
-PlotTP.TextColor3 = Color3.fromRGB(255, 255, 255)
-PlotTP.Font = Enum.Font.GothamBold
-PlotTP.TextSize = 12
-PlotTP.Parent = Main
-addCorner(PlotTP, UDim.new(0, 9))
+TabHandles.Eggs:Divider()
 
---==============================================================
--- 搜索
---==============================================================
-local SearchBox = Instance.new("Frame")
-SearchBox.Size = UDim2.new(1, -124, 0, 40)
-SearchBox.Position = UDim2.new(0, 12, 0, 117)
-SearchBox.BackgroundColor3 = Color3.fromRGB(32, 33, 43)
-SearchBox.BorderSizePixel = 0
-SearchBox.Parent = Main
-addCorner(SearchBox, UDim.new(0, 9))
+TabHandles.Eggs:Toggle({
+	Title = "ESP 总开关",
+	Desc = "全局显示 / 隐藏蛋 ESP",
+	Value = true,
+	Callback = function(v)
+		GlobalESPEnabled = v
+		for model, esp in pairs(ESPs) do
+			if esp then
+				local enabled = GlobalESPEnabled and getEggTypeEnabled(model)
+				esp.Billboard.Enabled = enabled
+				if esp.Highlight then esp.Highlight.Enabled = enabled end
+			end
+		end
+	end,
+})
 
-local SearchIcon = Instance.new("TextLabel")
-SearchIcon.Size = UDim2.new(0, 35, 1, 0)
-SearchIcon.BackgroundTransparency = 1
-SearchIcon.Text = "S"
-SearchIcon.TextColor3 = Color3.fromRGB(155, 160, 180)
-SearchIcon.Font = Enum.Font.GothamBold
-SearchIcon.TextSize = 20
-SearchIcon.Parent = SearchBox
+local SearchQuery = ""
+TabHandles.Eggs:Input({
+	Title = "搜索蛋",
+	Placeholder = "输入蛋名称...",
+	Icon = "search",
+	Callback = function(text)
+		SearchQuery = string.lower(text or "")
+		if updateSearch then updateSearch() end
+	end,
+})
 
-local Search = Instance.new("TextBox")
-Search.Position = UDim2.new(0, 34, 0, 0)
-Search.Size = UDim2.new(1, -40, 1, 0)
-Search.BackgroundTransparency = 1
-Search.TextColor3 = Color3.fromRGB(240, 240, 248)
-Search.PlaceholderColor3 = Color3.fromRGB(125, 128, 145)
-Search.PlaceholderText = "搜索蛋类型..."
-Search.Text = ""
-Search.ClearTextOnFocus = false
-Search.Font = Enum.Font.Gotham
-Search.TextSize = 12
-Search.TextXAlignment = Enum.TextXAlignment.Left
-Search.Parent = SearchBox
+TabHandles.Eggs:Button({
+	Title = "传送到我的地块",
+	Icon = "home",
+	Justify = "Center",
+	Callback = function()
+		getCharacter()
+		if not Character or not RootPart then showStatus("角色未找到") return end
+		local bp = getMyPlotBaseplate()
+		if not bp then showStatus("未找到你的地块") return end
+		local target = getBaseplateTopCFrame(bp)
+		if not target then showStatus("地块无效") return end
+		local ok, reason = safeTeleport(Character, RootPart, target)
+		if ok then showStatus("已传送到我的地块") else showStatus("传送失败：" .. tostring(reason)) end
+	end,
+})
 
---==============================================================
--- 滚动列表
---==============================================================
-local List = Instance.new("ScrollingFrame")
-List.Size = UDim2.new(1, -24, 0, 328)
-List.Position = UDim2.new(0, 12, 0, 165)
-List.BackgroundColor3 = Color3.fromRGB(27, 28, 36)
-List.BorderSizePixel = 0
-List.ClipsDescendants = true
-List.ScrollingDirection = Enum.ScrollingDirection.Y
-List.ScrollBarThickness = 4
-List.ScrollBarImageTransparency = 0.25
-List.CanvasSize = UDim2.new(0, 0, 0, 0)
-List.AutomaticCanvasSize = Enum.AutomaticSize.None
-List.Parent = Main
-addCorner(List, UDim.new(0, 10))
+TabHandles.Eggs:Divider()
 
-local ListPadding = Instance.new("UIPadding")
-ListPadding.PaddingTop = UDim.new(0, 5)
-ListPadding.PaddingBottom = UDim.new(0, 5)
-ListPadding.PaddingLeft = UDim.new(0, 5)
-ListPadding.PaddingRight = UDim.new(0, 5)
-ListPadding.Parent = List
+-- 蛋列表容器
+local ListHolder = Instance.new("ScrollingFrame")
+ListHolder.Name = "EggListHolder"
+ListHolder.Size = UDim2.new(1, -10, 0, 340)
+ListHolder.BackgroundColor3 = Color3.fromRGB(27, 28, 36)
+ListHolder.BorderSizePixel = 0
+ListHolder.ClipsDescendants = true
+ListHolder.ScrollingDirection = Enum.ScrollingDirection.Y
+ListHolder.ScrollBarThickness = 4
+ListHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+ListHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ListHolder.Parent = TabHandles.Eggs.UIElements[1]
 
 local ListLayout = Instance.new("UIListLayout")
 ListLayout.Padding = UDim.new(0, 4)
 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Parent = List
-
-ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	List.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 12)
-end)
+ListLayout.Parent = ListHolder
 
 --==============================================================
--- 状态
+-- ESP 创建 / 销毁
 --==============================================================
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -24, 0, 40)
-Status.Position = UDim2.new(0, 12, 0, 508)
-Status.BackgroundColor3 = Color3.fromRGB(29, 30, 39)
-Status.Font = Enum.Font.Gotham
-Status.TextSize = 12
-Status.TextTruncate = Enum.TextTruncate.AtEnd
-Status.TextYAlignment = Enum.TextYAlignment.Center
-Status.TextColor3 = Color3.fromRGB(145, 149, 165)
-Status.TextXAlignment = Enum.TextXAlignment.Left
-Status.Text = ""
-Status.Parent = Main
-Status.Visible = false
-addCorner(Status, UDim.new(0, 8))
-
-local StatusPadding = Instance.new("UIPadding")
-StatusPadding.PaddingLeft = UDim.new(0, 10)
-StatusPadding.PaddingRight = UDim.new(0, 10)
-StatusPadding.Parent = Status
-
--- 将现有控件移入蛋页面。
-GlobalToggle.Parent = SettingsPage
-GlobalToggle.Position = UDim2.new(0, 0, 0, 0)
-
-PlotTP.Parent = SettingsPage
-PlotTP.Position = UDim2.new(0, 0, 0, 46)
-
-SearchBox.Parent = EggsPage
-SearchBox.Position = UDim2.new(0, 0, 0, 46)
-
-List.Parent = EggsPage
-List.Position = UDim2.new(0, 0, 0, 94)
-List.Size = UDim2.new(1, 0, 0, 300)
-
-Status.Parent = EggsPage
-Status.Position = UDim2.new(0, 0, 0, 401)
-Status.Size = UDim2.new(1, 0, 0, 40)
-
-local FlyStateLabel = Instance.new("TextLabel")
-FlyStateLabel.Size = UDim2.new(1, 0, 0, 36)
-FlyStateLabel.Position = UDim2.new(0, 0, 0, 92)
-FlyStateLabel.BackgroundColor3 = Color3.fromRGB(32,33,43)
-FlyStateLabel.Text = "飞行：就绪 | 速度：" .. tostring(FlySpeed)
-FlyStateLabel.TextColor3 = Color3.fromRGB(190,194,210)
-FlyStateLabel.Font = Enum.Font.Gotham
-FlyStateLabel.TextSize = 11
-FlyStateLabel.TextXAlignment = Enum.TextXAlignment.Left
-FlyStateLabel.Parent = SettingsPage
-addPadding(FlyStateLabel, 10)
-addCorner(FlyStateLabel, UDim.new(0,8))
-
-local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(1,0,0,28)
-SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "飞行速度：" .. tostring(FlySpeed)
-SpeedLabel.TextColor3 = Color3.fromRGB(230,232,242)
-SpeedLabel.Font = Enum.Font.GothamBold
-SpeedLabel.TextSize = 12
-SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpeedLabel.LayoutOrder = 3
-SpeedLabel.Parent = SettingsPage
-
-local SpeedBar = Instance.new("Frame")
-SpeedBar.Size = UDim2.new(1,0,0,14)
-SpeedBar.BackgroundColor3 = Color3.fromRGB(45,46,58)
-SpeedBar.LayoutOrder = 4
-SpeedBar.Parent = SettingsPage
-addCorner(SpeedBar, UDim.new(1,0))
-
-local SpeedFill = Instance.new("Frame")
-SpeedFill.Size = UDim2.new((FlySpeed-MIN_FLY_SPEED)/(MAX_FLY_SPEED-MIN_FLY_SPEED),0,1,0)
-SpeedFill.BackgroundColor3 = Color3.fromRGB(90,120,235)
-SpeedFill.BorderSizePixel = 0
-SpeedFill.Parent = SpeedBar
-addCorner(SpeedFill, UDim.new(1,0))
-
-local SpeedHit = Instance.new("TextButton")
-SpeedHit.Size = UDim2.new(1,0,1,0)
-SpeedHit.BackgroundTransparency = 1
-SpeedHit.Text = ""
-SpeedHit.Parent = SpeedBar
-
-local function setFlySpeed(value)
-	FlySpeed = math.clamp(math.floor(tonumber(value) or FlySpeed), MIN_FLY_SPEED, MAX_FLY_SPEED)
-	local alpha = (FlySpeed-MIN_FLY_SPEED)/(MAX_FLY_SPEED-MIN_FLY_SPEED)
-	SpeedFill.Size = UDim2.new(alpha,0,1,0)
-	SpeedLabel.Text = "飞行速度：" .. tostring(FlySpeed)
-	FlyStateLabel.Text = (FlyBusy and "飞行：飞行中" or "飞行：就绪") .. " | 速度：" .. tostring(FlySpeed)
+local function getESPDisplayText(model, rarityInfo, distance)
+	local name = model and model.Name or "Egg"
+	local rarity = rarityInfo and rarityInfo.Name or "Unknown"
+	local text
+	if ESPDisplayMode == "Rarity" then text = rarity
+	elseif ESPDisplayMode == "Name" then text = name
+	else text = name .. " [" .. rarity .. "]" end
+	if distance then text ..= "\n[" .. math.floor(distance) .. " studs]" end
+	return text
 end
 
-SpeedHit.MouseButton1Down:Connect(function()
-	local mouse = LocalPlayer:GetMouse()
-	local function update()
-		local alpha = math.clamp((mouse.X - SpeedBar.AbsolutePosition.X) / SpeedBar.AbsoluteSize.X, 0, 1)
-		setFlySpeed(MIN_FLY_SPEED + alpha * (MAX_FLY_SPEED-MIN_FLY_SPEED))
-	end
-	update()
-	local moveConn
-	moveConn = UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			update()
-		end
-	end)
-	local endConn
-	endConn = UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			moveConn:Disconnect()
-			endConn:Disconnect()
-		end
-	end)
-end)
-
-local ReturnLabel = Instance.new("TextLabel")
-ReturnLabel.Size = UDim2.new(1,0,0,32)
-ReturnLabel.BackgroundColor3 = Color3.fromRGB(32,33,43)
-ReturnLabel.Text = "到达蛋后自动返回我的地块：开"
-ReturnLabel.TextColor3 = Color3.fromRGB(225,228,240)
-ReturnLabel.Font = Enum.Font.Gotham
-ReturnLabel.TextSize = 11
-ReturnLabel.TextXAlignment = Enum.TextXAlignment.Left
-ReturnLabel.LayoutOrder = 5
-ReturnLabel.Parent = SettingsPage
-addPadding(ReturnLabel, 10)
-addCorner(ReturnLabel, UDim.new(0,8))
-
-local DisplayTitle = Instance.new("TextButton")
-DisplayTitle.Size = UDim2.new(1,0,0,34)
-DisplayTitle.BackgroundColor3 = Color3.fromRGB(32,33,43)
-DisplayTitle.Text = "ESP 显示 [+]"
-DisplayTitle.TextColor3 = Color3.fromRGB(240,242,250)
-DisplayTitle.Font = Enum.Font.GothamBold
-DisplayTitle.TextSize = 12
-DisplayTitle.TextXAlignment = Enum.TextXAlignment.Left
-DisplayTitle.AutoButtonColor = false
-DisplayTitle.Parent = SettingsPage
-addPadding(DisplayTitle, 10)
-addCorner(DisplayTitle, UDim.new(0,8))
-local DisplayFrame = Instance.new("Frame")
-DisplayFrame.Size = UDim2.new(1,0,0,102)
-DisplayFrame.BackgroundColor3 = Color3.fromRGB(29,30,39)
-DisplayFrame.Visible = false
-DisplayFrame.Parent = SettingsPage
-addCorner(DisplayFrame, UDim.new(0,9))
-
-local DisplayLayout = Instance.new("UIListLayout")
-DisplayLayout.Padding = UDim.new(0,5)
-DisplayLayout.Parent = DisplayFrame
-
-local DisplayPad = Instance.new("UIPadding")
-DisplayPad.PaddingTop = UDim.new(0,7)
-DisplayPad.PaddingLeft = UDim.new(0,8)
-DisplayPad.PaddingRight = UDim.new(0,8)
-DisplayPad.Parent = DisplayFrame
-
-local DisplayOpen = false
-local DisplayOptions = {"Name", "Rarity", "Name + Rarity"}
-local DisplayButtons = {}
-local relayoutSettings
-
-local function updateDisplayUI()
-	for mode, button in pairs(DisplayButtons) do
-		local selected = ESPDisplayMode == mode
-		button.Text = (selected and "[开] " or "[关] ") .. mode
-		button.BackgroundColor3 = selected and Color3.fromRGB(48,50,65) or Color3.fromRGB(34,35,44)
-	end
-end
-
-for _, mode in ipairs(DisplayOptions) do
-	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(1,0,0,26)
-	button.BackgroundColor3 = Color3.fromRGB(34,35,44)
-	button.TextColor3 = Color3.fromRGB(225,228,240)
-	button.Font = Enum.Font.GothamBold
-	button.TextSize = 10
-	button.Text = "[关] " .. mode
-	button.AutoButtonColor = false
-	button.Parent = DisplayFrame
-
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0,6)
-	c.Parent = button
-
-	DisplayButtons[mode] = button
-
-	button.MouseButton1Click:Connect(function()
-		ESPDisplayMode = mode
-		DisplayTitle.Text = "ESP 显示：" .. mode .. (DisplayOpen and " [-]" or " [+]")
-		updateDisplayUI()
-		refreshESPDisplay()
-	end)
-end
-
-local function setDisplayOpen(open)
-	DisplayOpen = open
-	DisplayFrame.Visible = open
-	DisplayTitle.Text = "ESP 显示：" .. ESPDisplayMode .. (open and " [-]" or " [+]")
-	if relayoutSettings then relayoutSettings() end
-end
-
-DisplayTitle.MouseButton1Click:Connect(function()
-	setDisplayOpen(not DisplayOpen)
-end)
-
-updateDisplayUI()
-
-local RarityTitle = Instance.new("TextButton")
-RarityTitle.Size = UDim2.new(1,0,0,34)
-RarityTitle.BackgroundColor3 = Color3.fromRGB(32,33,43)
-RarityTitle.Text = "蛋稀有度过滤 [+]"
-RarityTitle.TextColor3 = Color3.fromRGB(240,242,250)
-RarityTitle.Font = Enum.Font.GothamBold
-RarityTitle.TextSize = 12
-RarityTitle.TextXAlignment = Enum.TextXAlignment.Left
-RarityTitle.LayoutOrder = 6
-RarityTitle.AutoButtonColor = false
-RarityTitle.Parent = SettingsPage
-addPadding(RarityTitle, 10)
-addCorner(RarityTitle, UDim.new(0,8))
-
-local RarityFrame = Instance.new("Frame")
-RarityFrame.Size = UDim2.new(1,0,0,180)
-RarityFrame.BackgroundColor3 = Color3.fromRGB(29,30,39)
-RarityFrame.LayoutOrder = 7
-RarityFrame.Visible = false
-RarityFrame.Parent = SettingsPage
-addCorner(RarityFrame, UDim.new(0,9))
-
-local RarityGrid = Instance.new("UIGridLayout")
-RarityGrid.CellSize = UDim2.new(0.5,-6,0,28)
-RarityGrid.CellPadding = UDim2.new(0,6,0,5)
-RarityGrid.SortOrder = Enum.SortOrder.LayoutOrder
-RarityGrid.Parent = RarityFrame
-
-local RarityPad = Instance.new("UIPadding")
-RarityPad.PaddingTop = UDim.new(0,8)
-RarityPad.PaddingLeft = UDim.new(0,8)
-RarityPad.PaddingRight = UDim.new(0,8)
-RarityPad.Parent = RarityFrame
-
-local function updateRarityFilterUI()
-	for _, child in ipairs(RarityFrame:GetChildren()) do
-		if child:IsA("TextButton") then
-			local rarityKey = child:GetAttribute("RarityKey")
-			local info = RarityByName[rarityKey]
-			local on = SelectedRarities[rarityKey] == true
-			child.Text = (on and "[开] " or "[关] ") .. (info and info.Name or rarityKey)
-			child.TextColor3 = info and info.Color or Color3.fromRGB(220,220,230)
-			child.BackgroundColor3 = on and Color3.fromRGB(48,50,65) or Color3.fromRGB(34,35,44)
+refreshESPDisplay = function()
+	for model, esp in pairs(ESPs) do
+		if model and model.Parent and esp and esp.Label then
+			local info = getManualRarity(model.Name)
+			esp.Label.Text = getESPDisplayText(model, info, nil)
 		end
 	end
 end
+
+local function createESP(model)
+	if not model or not model:IsA("Model") or not model.Parent then return end
+	if ESPs[model] then return end
+	local root = getRootPart(model)
+	if not root then return end
+	local info = getManualRarity(model.Name)
+	local color = info and info.Color or Color3.fromRGB(220, 220, 230)
+
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "EggESP"
+	bb.Adornee = root
+	bb.AlwaysOnTop = true
+	bb.Size = UDim2.new(0, 190, 0, 44)
+	bb.StudsOffset = Vector3.new(0, 2.5, 0)
+	bb.Enabled = GlobalESPEnabled and getEggTypeEnabled(model)
+	bb.Parent = root
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Name = "Info"
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 13
+	lbl.TextColor3 = color
+	lbl.TextStrokeTransparency = 0.15
+	lbl.Text = getESPDisplayText(model, info)
+	lbl.Parent = bb
+
+	local hl
+	if SHOW_HIGHLIGHT then
+		hl = Instance.new("Highlight")
+		hl.Name = "EggHighlight"
+		hl.FillColor = color
+		hl.OutlineColor = color
+		hl.FillTransparency = 0.78
+		hl.OutlineTransparency = 0.1
+		hl.Adornee = model
+		hl.Enabled = GlobalESPEnabled and getEggTypeEnabled(model)
+		hl.Parent = model
+	end
+
+	ESPs[model] = { Billboard = bb, Label = lbl, Highlight = hl }
+end
+
+local function destroyESP(model)
+	local esp = ESPs[model]
+	if not esp then return end
+	if esp.Billboard then esp.Billboard:Destroy() end
+	if esp.Highlight then esp.Highlight:Destroy() end
+	ESPs[model] = nil
+end
+
+--==============================================================
+-- 分组 + 蛋行
+--==============================================================
+local EggGroupFrames = {}
+
+local function createGroupFrame(groupName, layoutOrder)
+	if EggGroupFrames[groupName] then return EggGroupFrames[groupName] end
+
+	local group = {
+		Name = groupName,
+		Expanded = true,
+		Rows = {},
+		Frame = nil,
+		Container = nil,
+		LayoutOrder = layoutOrder or 999,
+	}
+
+	local gf = Instance.new("Frame")
+	gf.Name = "Group_" .. groupName
+	gf.Size = UDim2.new(1, -2, 0, 34)
+	gf.BackgroundTransparency = 1
+	gf.AutomaticSize = Enum.AutomaticSize.Y
+	gf.LayoutOrder = group.LayoutOrder
+	gf.Parent = ListHolder
+
+	local gl = Instance.new("UIListLayout")
+	gl.Padding = UDim.new(0, 2)
+	gl.SortOrder = Enum.SortOrder.LayoutOrder
+	gl.Parent = gf
+
+	local header = Instance.new("Frame")
+	header.Name = "Header"
+	header.Size = UDim2.new(1, -2, 0, 34)
+	header.BackgroundColor3 = Color3.fromRGB(41, 42, 54)
+	header.BorderSizePixel = 0
+	header.LayoutOrder = 1
+	header.Parent = gf
+	local hc = Instance.new("UICorner") hc.CornerRadius = UDim.new(0, 7) hc.Parent = header
+
+	local toggle = Instance.new("TextButton")
+	toggle.Size = UDim2.new(1, -110, 1, 0)
+	toggle.BackgroundTransparency = 1
+	toggle.TextXAlignment = Enum.TextXAlignment.Left
+	toggle.Font = Enum.Font.GothamBold
+	toggle.TextSize = 12
+	toggle.TextColor3 = Color3.fromRGB(235, 237, 248)
+	toggle.Text = "v " .. groupName
+	toggle.Parent = header
+
+	local countLabel = Instance.new("TextLabel")
+	countLabel.Name = "Count"
+	countLabel.Size = UDim2.new(0, 100, 1, 0)
+	countLabel.Position = UDim2.new(1, -102, 0, 0)
+	countLabel.BackgroundTransparency = 1
+	countLabel.Font = Enum.Font.GothamBold
+	countLabel.TextSize = 10
+	countLabel.TextXAlignment = Enum.TextXAlignment.Right
+	countLabel.TextColor3 = Color3.fromRGB(190, 195, 205)
+	countLabel.Text = "0"
+	countLabel.Parent = header
+
+	local container = Instance.new("Frame")
+	container.Name = "Container"
+	container.Size = UDim2.new(1, -2, 0, 0)
+	container.BackgroundTransparency = 1
+	container.AutomaticSize = Enum.AutomaticSize.Y
+	container.Visible = true
+	container.LayoutOrder = 2
+	container.Parent = gf
+
+	local cl = Instance.new("UIListLayout")
+	cl.Padding = UDim.new(0, 2)
+	cl.Parent = container
+
+	group.Frame = gf
+	group.Container = container
+	group.Toggle = toggle
+	group.CountLabel = countLabel
+
+	toggle.MouseButton1Click:Connect(function()
+		group.Expanded = not group.Expanded
+		container.Visible = group.Expanded
+		toggle.Text = (group.Expanded and "v " or "> ") .. groupName
+	end)
+
+	EggGroupFrames[groupName] = group
+	return group
+end
+
+local function createEggRow(model)
+	if EggEntries[model] then return end
+	if not model or not model:IsA("Model") or not model.Parent then return end
+
+	local info = getManualRarity(model.Name)
+	local layoutOrder = info and info.Order or 999
+	local group = createGroupFrame(model.Name, layoutOrder)
+
+	local row = Instance.new("Frame")
+	row.Name = "Egg"
+	row.Size = UDim2.new(1, -4, 0, 32)
+	row.BackgroundColor3 = Color3.fromRGB(35, 36, 46)
+	row.BorderSizePixel = 0
+	row.Parent = group.Container
+	local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 6) rc.Parent = row
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, -90, 1, 0)
+	nameLabel.Position = UDim2.new(0, 8, 0, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = model.Name
+	nameLabel.TextColor3 = Color3.fromRGB(220, 222, 235)
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.Font = Enum.Font.Gotham
+	nameLabel.TextSize = 12
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.Parent = row
+
+	local tp = Instance.new("TextButton")
+	tp.Size = UDim2.new(0, 40, 0, 26)
+	tp.Position = UDim2.new(1, -87, 0, 3)
+	tp.BackgroundColor3 = Color3.fromRGB(72, 155, 105)
+	tp.Text = "TP"
+	tp.TextColor3 = Color3.fromRGB(255,255,255)
+	tp.Font = Enum.Font.GothamBold
+	tp.TextSize = 10
+	tp.Parent = row
+	local tpc = Instance.new("UICorner") tpc.CornerRadius = UDim.new(0,6) tpc.Parent = tp
+
+	local flyBtn = Instance.new("TextButton")
+	flyBtn.Size = UDim2.new(0, 40, 0, 26)
+	flyBtn.Position = UDim2.new(1, -44, 0, 3)
+	flyBtn.BackgroundColor3 = Color3.fromRGB(77, 97, 175)
+	flyBtn.Text = "FLY"
+	flyBtn.TextColor3 = Color3.fromRGB(255,255,255)
+	flyBtn.Font = Enum.Font.GothamBold
+	flyBtn.TextSize = 10
+	flyBtn.Parent = row
+	local fc = Instance.new("UICorner") fc.CornerRadius = UDim.new(0,6) fc.Parent = flyBtn
+
+	local entry = { Model = model, Frame = row, Label = nameLabel, Group = group, TPButton = tp, FlyButton = flyBtn }
+	EggEntries[model] = entry
+	table.insert(group.Rows, row)
+	group.CountLabel.Text = tostring(#group.Rows)
+
+	tp.MouseButton1Click:Connect(function()
+		if not Running or not model.Parent then return end
+		getCharacter()
+		local target = getEggTopCFrame(model)
+		if not Character or not RootPart or not target then showStatus("蛋未就绪") return end
+		local ok, reason = safeTeleport(Character, RootPart, target)
+		if ok then showStatus("TP -> " .. model.Name, 1.5)
+		else showStatus("TP 失败：" .. tostring(reason), 2) end
+	end)
+
+	flyBtn.MouseButton1Click:Connect(function()
+		if not Running then return end
+		if FlyBusy then
+			FlyCancelToken += 1
+			FlyBusy = false
+			flyBtn.Text = "FLY"
+			showStatus("飞行已取消")
+			return
+		end
+		flyBtn.Text = "STOP"
+		task.spawn(function()
+			flyToTarget(model, true)
+			if flyBtn and flyBtn.Parent then flyBtn.Text = "FLY" end
+		end)
+	end)
+end
+
+--==============================================================
+-- 注册模型
+--==============================================================
+local function registerModel(model)
+	if not Running then return end
+	if not model or not model:IsA("Model") or not model.Parent then return end
+	if not model:IsDescendantOf(RenderedEggs) then return end
+	model = resolveEggModel(model)
+	if not EggEntries[model] then createEggRow(model) end
+	if not ESPs[model] then createESP(model) end
+	if updateSearch then updateSearch() end
+end
+
+--==============================================================
+-- 搜索过滤
+--==============================================================
+updateSearch = function()
+	local groupHasMatch = {}
+	for model, entry in pairs(EggEntries) do
+		if entry and entry.Model and entry.Frame and entry.Model.Parent then
+			local name = string.lower(entry.Model.Name)
+			local matches = SearchQuery == "" or string.find(name, SearchQuery, 1, true) ~= nil
+			entry.Frame.Visible = matches
+			if matches then groupHasMatch[entry.Group] = true end
+		elseif entry and entry.Frame then
+			entry.Frame.Visible = false
+		end
+	end
+	for _, group in pairs(EggGroupFrames) do
+		if SearchQuery == "" then
+			group.Frame.Visible = true
+		else
+			group.Frame.Visible = groupHasMatch[group] == true
+		end
+	end
+end
+
+--==============================================================
+-- 飞行页
+--==============================================================
+TabHandles.Fly:Paragraph({
+	Title = "飞行设置",
+	Desc = "无碰撞穿墙飞行到蛋",
+	Image = "plane",
+	ImageSize = 20,
+	Color = "White",
+})
+
+TabHandles.Fly:Slider({
+	Title = "飞行速度",
+	Desc = "调整无碰撞飞行速度",
+	Step = 5,
+	Value = { Min = MIN_FLY_SPEED, Max = MAX_FLY_SPEED, Default = FlySpeed },
+	Callback = function(v)
+		FlySpeed = math.clamp(math.floor(tonumber(v) or FlySpeed), MIN_FLY_SPEED, MAX_FLY_SPEED)
+	end,
+})
+
+TabHandles.Fly:Toggle({
+	Title = "到达蛋后自动返回我的地块",
+	Value = FlyToPlotAfterEgg,
+	Callback = function(v)
+		FlyToPlotAfterEgg = v
+	end,
+})
+
+--==============================================================
+-- 稀有度过滤页
+--==============================================================
+TabHandles.Rarity:Paragraph({
+	Title = "蛋稀有度过滤",
+	Desc = "只显示选中的稀有度",
+	Image = "filter",
+	ImageSize = 20,
+	Color = "White",
+})
 
 for _, info in ipairs(RARITY_CONFIG) do
 	local key = string.lower(info.Name)
-	local button = Instance.new("TextButton")
-	button.LayoutOrder = info.Order
-	button:SetAttribute("RarityKey", key)
-	button.BackgroundColor3 = Color3.fromRGB(48,50,65)
-	button.Text = "[开] " .. info.Name
-	button.TextColor3 = info.Color
-	button.Font = Enum.Font.GothamBold
-	button.TextSize = 11
-	button.AutoButtonColor = false
-	button.Parent = RarityFrame
-
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0,7)
-	c.Parent = button
-
-	button.MouseButton1Click:Connect(function()
-		SelectedRarities[key] = not SelectedRarities[key]
-		updateRarityFilterUI()
-		if updateSearch then updateSearch() end
-	end)
+	TabHandles.Rarity:Toggle({
+		Title = info.Name,
+		Value = true,
+		Callback = function(v)
+			SelectedRarities[key] = v
+			if updateSearch then updateSearch() end
+			for model, esp in pairs(ESPs) do
+				if esp then
+					local enabled = GlobalESPEnabled and getEggTypeEnabled(model)
+					esp.Billboard.Enabled = enabled
+					if esp.Highlight then esp.Highlight.Enabled = enabled end
+				end
+			end
+		end,
+	})
 end
 
-local RarityFilterOpen = false
-local AutoReturnButton
+TabHandles.Rarity:Divider()
 
-local function setRarityFilterOpen(open)
-	RarityFilterOpen = open
-	RarityFrame.Visible = open
-	RarityTitle.Text = open and "蛋稀有度过滤 [-]" or "蛋稀有度过滤 [+]"
-	if relayoutSettings then relayoutSettings() end
-end
-
-RarityTitle.MouseButton1Click:Connect(function()
-	setRarityFilterOpen(not RarityFilterOpen)
-end)
-
-AutoReturnButton = Instance.new("TextButton")
-AutoReturnButton.Size = UDim2.new(1,0,0,34)
-AutoReturnButton.BackgroundColor3 = Color3.fromRGB(60,145,90)
-AutoReturnButton.Text = "自动返回：开"
-AutoReturnButton.TextColor3 = Color3.fromRGB(255,255,255)
-AutoReturnButton.Font = Enum.Font.GothamBold
-AutoReturnButton.TextSize = 11
-AutoReturnButton.LayoutOrder = 8
-AutoReturnButton.Parent = SettingsPage
-addCorner(AutoReturnButton, UDim.new(0,8))
-
-local SuperOptimizeButton = Instance.new("TextButton")
-SuperOptimizeButton.Size = UDim2.new(1,0,0,34)
-SuperOptimizeButton.BackgroundColor3 = SUPER_OPTIMIZE and Color3.fromRGB(60,145,90) or Color3.fromRGB(145,65,75)
-SuperOptimizeButton.Text = SUPER_OPTIMIZE and "超级优化：开" or "超级优化：关"
-SuperOptimizeButton.TextColor3 = Color3.fromRGB(255,255,255)
-SuperOptimizeButton.Font = Enum.Font.GothamBold
-SuperOptimizeButton.TextSize = 11
-SuperOptimizeButton.Parent = SettingsPage
-addCorner(SuperOptimizeButton, UDim.new(0,8))
-
-SuperOptimizeButton.MouseButton1Click:Connect(function()
-	if setSuperOptimization then setSuperOptimization(not SUPER_OPTIMIZE) end
-end)
-
+TabHandles.Rarity:Dropdown({
+	Title = "ESP 显示内容",
+	Values = { "Name", "Rarity", "Name + Rarity" },
+	Value = ESPDisplayMode,
+	Callback = function(option)
+		ESPDisplayMode = option
+		refreshESPDisplay()
+	end,
+})
 --==============================================================
--- 自动农场
+-- 自动农场页
 --==============================================================
-local AutoFarmTitle = Instance.new("TextLabel")
-AutoFarmTitle.Size = UDim2.new(1,0,0,28)
-AutoFarmTitle.BackgroundTransparency = 1
-AutoFarmTitle.Text = "自动农场"
-AutoFarmTitle.TextColor3 = Color3.fromRGB(240,242,250)
-AutoFarmTitle.Font = Enum.Font.GothamBold
-AutoFarmTitle.TextSize = 12
-AutoFarmTitle.TextXAlignment = Enum.TextXAlignment.Left
-AutoFarmTitle.Parent = SettingsPage
+TabHandles.Farm:Paragraph({
+	Title = "自动农场",
+	Desc = "自动飞向最近的蛋、拾取、返回地块",
+	Image = "tractor",
+	ImageSize = 20,
+	Color = "White",
+})
 
-local AutoFarmToggle = Instance.new("TextButton")
-AutoFarmToggle.Size = UDim2.new(1,0,0,34)
-AutoFarmToggle.BackgroundColor3 = Color3.fromRGB(145,65,75)
-AutoFarmToggle.Text = "自动农场：关"
-AutoFarmToggle.TextColor3 = Color3.fromRGB(255,255,255)
-AutoFarmToggle.Font = Enum.Font.GothamBold
-AutoFarmToggle.TextSize = 11
-AutoFarmToggle.AutoButtonColor = false
-AutoFarmToggle.Parent = SettingsPage
-addCorner(AutoFarmToggle, UDim.new(0,8))
-
-local AutoFarmTargetButton = Instance.new("TextButton")
-AutoFarmTargetButton.Size = UDim2.new(1,0,0,34)
-AutoFarmTargetButton.BackgroundColor3 = Color3.fromRGB(48,50,65)
-AutoFarmTargetButton.Text = "自动农场稀有度"
-AutoFarmTargetButton.TextColor3 = Color3.fromRGB(230,232,242)
-AutoFarmTargetButton.Font = Enum.Font.GothamBold
-AutoFarmTargetButton.TextSize = 11
-AutoFarmTargetButton.TextXAlignment = Enum.TextXAlignment.Left
-AutoFarmTargetButton.AutoButtonColor = false
-AutoFarmTargetButton.Parent = SettingsPage
-addPadding(AutoFarmTargetButton, 10)
-addCorner(AutoFarmTargetButton, UDim.new(0,8))
-
-local AutoFarmList = Instance.new("Frame")
-AutoFarmList.Size = UDim2.new(1,0,0,0)
-AutoFarmList.BackgroundTransparency = 1
-AutoFarmList.BorderSizePixel = 0
-AutoFarmList.Visible = true
-AutoFarmList.Parent = SettingsPage
-
-local AutoFarmListLayout = Instance.new("UIListLayout")
-AutoFarmListLayout.Padding = UDim.new(0,4)
-AutoFarmListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-AutoFarmListLayout.Parent = AutoFarmList
-
-local AutoFarmListOpen = false
-local AutoFarmRows = {}
-
-local function refreshAutoFarmTargetButton()
-	local count = 0
-	for _ in pairs(AutoFarmTargets) do count += 1 end
-
-	if AutoFarmTargetAll then
-		AutoFarmTargetButton.Text = "自动农场稀有度：全部"
-	elseif count == 0 then
-		AutoFarmTargetButton.Text = "自动农场稀有度：无"
-	elseif count == 1 then
-		for key in pairs(AutoFarmTargets) do
-			AutoFarmTargetButton.Text = "自动农场稀有度：" .. tostring(key)
-			break
+TabHandles.Farm:Toggle({
+	Title = "启用自动农场",
+	Value = false,
+	Callback = function(v)
+		AutoFarmEnabled = v
+		AutoFarmToken += 1
+		if AutoFarmEnabled then
+			task.spawn(runAutoFarm)
 		end
-	else
-		AutoFarmTargetButton.Text = "自动农场稀有度：" .. tostring(count) .. " 种"
+	end,
+})
+
+TabHandles.Farm:Dropdown({
+	Title = "目标稀有度",
+	Values = (function()
+		local t = { "全部" }
+		for _, info in ipairs(RARITY_CONFIG) do table.insert(t, info.Name) end
+		return t
+	end)(),
+	Value = "全部",
+	Multi = true,
+	AllowNone = true,
+	Callback = function(selected)
+		local list = selected
+		if type(list) == "string" then list = { list } end
+		AutoFarmTargets = {}
+		AutoFarmTargetAll = false
+		for _, name in ipairs(list or {}) do
+			if name == "全部" then
+				AutoFarmTargetAll = true
+				break
+			end
+			AutoFarmTargets[string.lower(name)] = true
+		end
+	end,
+})
+
+--==============================================================
+-- 外观页
+--==============================================================
+TabHandles.Appearance:Paragraph({
+	Title = "自定义界面",
+	Desc = "个性化您的体验",
+	Image = "palette",
+	ImageSize = 20,
+	Color = "White",
+})
+
+local themes = {}
+for themeName, _ in pairs(WindUI:GetThemes()) do
+	table.insert(themes, themeName)
+end
+table.sort(themes)
+
+local themeDropdown = TabHandles.Appearance:Dropdown({
+	Title = "主题选择",
+	Values = themes,
+	Value = "Dark",
+	Callback = function(theme)
+		WindUI:SetTheme(theme)
+		WindUI:Notify({ Title = "主题已应用", Content = theme, Icon = "palette", Duration = 2 })
+	end,
+})
+
+TabHandles.Appearance:Slider({
+	Title = "透明度",
+	Value = { Min = 0, Max = 1, Default = 0.2 },
+	Step = 0.1,
+	Callback = function(value)
+		Window:ToggleTransparency(tonumber(value) > 0)
+		WindUI.TransparencyValue = tonumber(value)
+	end,
+})
+
+TabHandles.Appearance:Toggle({
+	Title = "启用深色模式",
+	Desc = "使用深色配色方案",
+	Value = true,
+	Callback = function(state)
+		WindUI:SetTheme(state and "Dark" or "Light")
+		if themeDropdown then themeDropdown:Select(state and "Dark" or "Light") end
+	end,
+})
+
+--==============================================================
+-- 边框页
+--==============================================================
+local borderSection = TabHandles.Border:Section({ Title = "边框控制", Icon = "square", Opened = true })
+
+borderSection:Toggle({
+	Title = "启用渐变边框",
+	Value = true,
+	Callback = function(value)
+		borderEnabled = value
+		local mainFrame = Window.UIElements.Main
+		if mainFrame then
+			local stroke = mainFrame:FindFirstChild("GradientStroke")
+			if stroke then
+				stroke.Enabled = value
+				if value and not borderAnimation then
+					borderAnimation = startBorderAnimation(Window, animationSpeed)
+				elseif not value and borderAnimation then
+					borderAnimation:Disconnect()
+					borderAnimation = nil
+				end
+			elseif value then
+				reinitializeBorder()
+			end
+		end
+	end,
+})
+
+borderSection:Slider({
+	Title = "动画速度",
+	Value = { Min = 1, Max = 10, Default = 3 },
+	Callback = function(value)
+		animationSpeed = value
+		if borderAnimation then borderAnimation:Disconnect() borderAnimation = nil end
+		if borderEnabled then borderAnimation = startBorderAnimation(Window, animationSpeed) end
+	end,
+})
+
+borderSection:Slider({
+	Title = "边框粗细",
+	Value = { Min = 1, Max = 5, Default = 2 },
+	Step = 0.5,
+	Callback = function(value)
+		local mainFrame = Window.UIElements.Main
+		if mainFrame then
+			local stroke = mainFrame:FindFirstChild("GradientStroke")
+			if stroke then stroke.Thickness = value end
+		end
+	end,
+})
+
+borderSection:Slider({
+	Title = "圆角大小",
+	Value = { Min = 0, Max = 30, Default = 16 },
+	Callback = function(value)
+		local mainFrame = Window.UIElements.Main
+		if mainFrame then
+			local corner = mainFrame:FindFirstChildOfClass("UICorner")
+			if not corner then
+				corner = Instance.new("UICorner")
+				corner.Parent = mainFrame
+			end
+			corner.CornerRadius = UDim.new(0, value)
+		end
+	end,
+})
+
+borderSection:Button({
+	Title = "重新创建边框",
+	Icon = "refresh-cw",
+	Callback = function()
+		reinitializeBorder()
+		WindUI:Notify({ Title = "边框已重建", Content = "边框效果已重新创建", Duration = 2 })
+	end,
+})
+
+--==============================================================
+-- 配置页
+--==============================================================
+TabHandles.Config:Paragraph({
+	Title = "配置管理器",
+	Desc = "保存和加载您的设置",
+	Image = "save",
+	ImageSize = 20,
+	Color = "White",
+})
+
+local configName = "default"
+TabHandles.Config:Input({
+	Title = "配置名称",
+	Value = configName,
+	Callback = function(value) configName = value end,
+})
+
+local ConfigManager = Window.ConfigManager
+if ConfigManager then
+	ConfigManager:Init(Window)
+
+	TabHandles.Config:Button({
+		Title = "保存配置",
+		Icon = "save",
+		Variant = "Primary",
+		Callback = function()
+			local cfg = ConfigManager:CreateConfig(configName)
+			cfg:Set("FlySpeed", FlySpeed)
+			cfg:Set("ESPDisplayMode", ESPDisplayMode)
+			cfg:Set("FlyToPlotAfterEgg", FlyToPlotAfterEgg)
+			cfg:Set("SelectedRarities", SelectedRarities)
+			cfg:Set("lastSave", os.date("%Y-%m-%d %H:%M:%S"))
+			if cfg:Save() then
+				WindUI:Notify({ Title = "保存成功", Content = "已保存为：" .. configName, Icon = "check", Duration = 3 })
+			else
+				WindUI:Notify({ Title = "错误", Content = "保存配置失败", Icon = "x", Duration = 3 })
+			end
+		end,
+	})
+
+	TabHandles.Config:Button({
+		Title = "加载配置",
+		Icon = "folder",
+		Callback = function()
+			local cfg = ConfigManager:CreateConfig(configName)
+			local data = cfg:Load()
+			if data then
+				if data.FlySpeed then FlySpeed = data.FlySpeed end
+				if data.ESPDisplayMode then ESPDisplayMode = data.ESPDisplayMode end
+				if data.FlyToPlotAfterEgg ~= nil then FlyToPlotAfterEgg = data.FlyToPlotAfterEgg end
+				if data.SelectedRarities then
+					for k, v in pairs(data.SelectedRarities) do SelectedRarities[k] = v end
+				end
+				refreshESPDisplay()
+				WindUI:Notify({ Title = "加载成功", Content = "已加载：" .. configName, Icon = "refresh-cw", Duration = 3 })
+			else
+				WindUI:Notify({ Title = "错误", Content = "加载配置失败", Icon = "x", Duration = 3 })
+			end
+		end,
+	})
+else
+	TabHandles.Config:Paragraph({
+		Title = "配置管理器不可用",
+		Desc = "此功能需要 ConfigManager",
+		Image = "alert-triangle",
+		ImageSize = 20,
+		Color = "White",
+	})
+end
+
+--==============================================================
+-- 飞行（无碰撞）
+--==============================================================
+local NoclipActive = false
+local NoclipOriginalCollision = {}
+
+local function setFlyNoclip(enabled)
+	getCharacter()
+	if enabled then
+		if NoclipActive then return end
+		NoclipOriginalCollision = {}
+		if Character and Character.Parent then
+			for _, part in ipairs(Character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					NoclipOriginalCollision[part] = part.CanCollide
+					part.CanCollide = false
+				end
+			end
+		end
+		NoclipActive = true
+		return
+	end
+	if not NoclipActive then return end
+	for part, originalValue in pairs(NoclipOriginalCollision) do
+		if part and part.Parent then part.CanCollide = originalValue end
+	end
+	NoclipOriginalCollision = {}
+	NoclipActive = false
+end
+
+local function refreshFlyNoclip()
+	if not NoclipActive then return end
+	getCharacter()
+	if not Character or not Character.Parent then return end
+	for _, part in ipairs(Character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if NoclipOriginalCollision[part] == nil then
+				NoclipOriginalCollision[part] = part.CanCollide
+			end
+			part.CanCollide = false
+		end
 	end
 end
 
-local function refreshAutoFarmRows()
-	local names = {}
-	for _, rarityInfo in ipairs(RARITY_CONFIG) do
-		table.insert(names, tostring(rarityInfo.Name))
+local function flySegment(targetPosition, token)
+	getCharacter()
+	if not Character or not RootPart or not RootPart.Parent then return false, "角色未找到" end
+	local start = RootPart.Position
+	if not isValidPosition(start) or not isValidPosition(targetPosition) then return false, "坐标无效" end
+	local distance = (targetPosition - start).Magnitude
+	local duration = math.max(distance / math.max(FlySpeed, 1), 0.03)
+	local started = os.clock()
+	local from = Character:GetPivot()
+	local target = CFrame.new(targetPosition, targetPosition + from.LookVector)
+
+	while Running and FlyBusy and token == FlyCancelToken do
+		getCharacter()
+		refreshFlyNoclip()
+		if not RootPart or not Character or not Character.Parent then return false, "角色丢失" end
+		local alpha = math.clamp((os.clock() - started) / duration, 0, 1)
+		Character:PivotTo(from:Lerp(target, alpha))
+		RootPart.AssemblyLinearVelocity = Vector3.zero
+		RootPart.AssemblyAngularVelocity = Vector3.zero
+		if alpha >= 1 then return true end
+		RunService.Heartbeat:Wait()
+	end
+	return false, "飞行已取消"
+end
+
+flyToTarget = function(model, afterEgg, stageFirst)
+	if FlyBusy then return false, "飞行正忙" end
+	model = resolveEggModel(model)
+	if not model or not model.Parent or not model:IsDescendantOf(RenderedEggs) then return false, "蛋已不存在" end
+	getCharacter()
+	if not Character or not RootPart then return false, "角色未找到" end
+
+	local hoverPosition = getEggHoverPosition(model)
+	if not hoverPosition then return false, "蛋未就绪" end
+
+	FlyBusy = true
+	FlyCancelToken += 1
+	local token = FlyCancelToken
+
+	local isVolcanic = string.lower(model.Name) == "volcanic egg"
+	local doStage = stageFirst == true or isVolcanic
+
+	setFlyNoclip(true)
+	showStatus("飞向 " .. model.Name, 2)
+
+	local function finish(ok, reason)
+		setFlyNoclip(false)
+		FlyBusy = false
+		return ok, reason
 	end
 
-	for key, row in pairs(AutoFarmRows) do
-		local found = false
-		for _, name in ipairs(names) do
-			if key == string.lower(name) then
-				found = true
+	if doStage then
+		local stagePosition = hoverPosition + Vector3.new(0, STAGE_HEIGHT, 0)
+		local teleported, reason = safeTeleport(Character, RootPart, CFrame.new(stagePosition))
+		if not teleported then
+			showStatus("传送失败：" .. tostring(reason), 2)
+			return finish(false, "中转传送失败：" .. tostring(reason))
+		end
+		showStatus("TP -> " .. model.Name, 0.6)
+	end
+
+	hoverPosition = getEggHoverPosition(model) or hoverPosition
+	local success = flySegment(hoverPosition, token)
+	if not success then
+		showStatus("无法到达 " .. model.Name, 2)
+		return finish(false, "无法到达蛋")
+	end
+
+	if model.Parent and model:IsDescendantOf(RenderedEggs) then
+		local picked, how = instantPickupEgg(model)
+		if picked then showStatus("拾取 -> " .. model.Name, 0.7)
+		else showStatus("拾取失败：" .. tostring(how), 2) end
+	end
+
+	if afterEgg and FlyToPlotAfterEgg and token == FlyCancelToken then
+		showStatus("等待 " .. model.Name .. " 被拾取", 3)
+		local pickupDeadline = os.clock() + PICKUP_CONFIRM_TIMEOUT
+		while Running and FlyBusy and token == FlyCancelToken and os.clock() < pickupDeadline do
+			if not model.Parent or not model:IsDescendantOf(RenderedEggs) then break end
+			RunService.Heartbeat:Wait()
+		end
+		if Running and FlyBusy and token == FlyCancelToken then
+			local baseplate = getMyPlotBaseplate()
+			if baseplate then
+				local plotTarget = getBaseplateTopCFrame(baseplate)
+				if plotTarget then
+					local teleported, reason = safeTeleport(Character, RootPart, plotTarget)
+					if not teleported then return finish(false, "返回地块传送失败：" .. tostring(reason)) end
+				else
+					return finish(false, "地块目标无效")
+				end
+			else
+				return finish(false, "未找到我的地块")
+			end
+		end
+	end
+
+	return finish(true)
+end
+
+--==============================================================
+-- 拾取
+--==============================================================
+debugEggHierarchy = function(egg)
+	warn("[拾取] 未找到 ProximityPrompt：" .. egg:GetFullName())
+	for _, obj in ipairs(egg:GetDescendants()) do
+		print(" ", obj.ClassName, obj:GetFullName())
+	end
+end
+
+getEggPickupPrompt = function(egg)
+	if not egg or not egg.Parent then return nil end
+	local containers = { egg }
+	local top = resolveEggModel(egg)
+	if top ~= egg then table.insert(containers, top) end
+	local fallback = nil
+	for _, container in ipairs(containers) do
+		for _, obj in ipairs(container:GetDescendants()) do
+			if obj:IsA("ProximityPrompt") then
+				local n = string.lower(obj.Name)
+				local a = string.lower(obj.ActionText)
+				if string.find(n, "pick", 1, true) or string.find(a, "pick", 1, true) then
+					return obj
+				end
+				fallback = fallback or obj
+			end
+		end
+	end
+	return fallback
+end
+
+local function waitForPickupPrompt(egg, timeout)
+	local deadline = os.clock() + timeout
+	repeat
+		local prompt = getEggPickupPrompt(egg)
+		if prompt then return prompt end
+		task.wait(0.1)
+	until os.clock() >= deadline or not egg.Parent
+	return nil
+end
+
+instantPickupEgg = function(egg)
+	if not egg or not egg.Parent then return false, "蛋已不存在" end
+	egg = resolveEggModel(egg)
+	local prompt = waitForPickupPrompt(egg, PICKUP_WAIT_TIMEOUT)
+	if not prompt or not prompt.Parent then
+		if egg.Parent then debugEggHierarchy(egg) end
+		return false, "未找到拾取提示"
+	end
+	pcall(function()
+		prompt.Enabled = true
+		prompt.HoldDuration = 0
+		prompt.RequiresLineOfSight = false
+		prompt.MaxActivationDistance = math.max(prompt.MaxActivationDistance, 10000)
+	end)
+	if typeof(fireproximityprompt) == "function" then
+		if pcall(fireproximityprompt, prompt, 1, true) or pcall(fireproximityprompt, prompt) then
+			return true, "fireproximityprompt"
+		end
+	end
+	local began = pcall(function() prompt:InputHoldBegin() end)
+	task.wait(0.05)
+	local ended = pcall(function() prompt:InputHoldEnd() end)
+	if began and ended then return true, "InputHold" end
+	return false, "激活提示失败"
+end
+
+--==============================================================
+-- 自动农场引擎
+--==============================================================
+runAutoFarm = function()
+	if AutoFarmBusy or not AutoFarmEnabled or not Running then return end
+	AutoFarmBusy = true
+	AutoFarmToken += 1
+	local token = AutoFarmToken
+
+	local ok, err = pcall(function()
+		while Running and AutoFarmEnabled and token == AutoFarmToken do
+			getCharacter()
+			local origin = RootPart and RootPart.Position
+			local egg, bestDistance = nil, math.huge
+
+			if origin then
+				for model in pairs(EggEntries) do
+					if model and model.Parent and model:IsDescendantOf(RenderedEggs) then
+						local allowed = AutoFarmTargetAll
+						if not allowed then
+							local info = getManualRarity(model.Name)
+							local key = info and string.lower(tostring(info.Name)) or nil
+							allowed = key ~= nil and AutoFarmTargets[key] == true
+						end
+						if allowed then
+							local root = getRootPart(model)
+							if root then
+								local d = (origin - root.Position).Magnitude
+								if d < bestDistance then egg, bestDistance = model, d end
+							end
+						end
+					end
+				end
+			end
+
+			if not egg then task.wait(0.35) continue end
+
+			if not FlyBusy then
+				local prev = FlyToPlotAfterEgg
+				FlyToPlotAfterEgg = true
+				flyToTarget(egg, true, true)
+				FlyToPlotAfterEgg = prev
+			end
+			task.wait(AutoFarmDelay)
+		end
+	end)
+
+	if not ok then
+		warn("[自动农场] " .. tostring(err))
+		FlyBusy = false
+	end
+	AutoFarmBusy = false
+end
+
+--==============================================================
+-- 传送 / 地块
+--==============================================================
+safeTeleport = function(character, root, targetCFrame)
+	if not character or not character.Parent then return false, "角色无效" end
+	if not root or not root.Parent then return false, "根部件无效" end
+	if not targetCFrame then return false, "目标无效" end
+	local targetPosition = targetCFrame.Position
+	if not isValidPosition(targetPosition) then return false, "目标坐标无效" end
+
+	local rp = RaycastParams.new()
+	rp.FilterType = Enum.RaycastFilterType.Exclude
+	rp.FilterDescendantsInstances = { character, RenderedEggs }
+	rp.IgnoreWater = true
+	local hit = workspace:Raycast(targetPosition + Vector3.new(0, 60, 0), Vector3.new(0, -120, 0), rp)
+	if hit and targetPosition.Y < hit.Position.Y + 3 then
+		targetPosition = Vector3.new(targetPosition.X, hit.Position.Y + 3, targetPosition.Z)
+		targetCFrame = CFrame.new(targetPosition)
+	end
+
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	character:PivotTo(targetCFrame)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	return true
+end
+
+local function scanMyPlot()
+	if not Plots then return nil end
+	if PlotScanCount >= MAX_PLOT_SCANS then return CachedMyPlot end
+	PlotScanCount += 1
+	CachedMyPlot, CachedBaseplate = nil, nil
+	for _, plot in ipairs(Plots:GetChildren()) do
+		local data = plot:FindFirstChild("Data")
+		if data then
+			local owner = data:FindFirstChild("Owner")
+			if owner and owner:IsA("ObjectValue") and owner.Value == LocalPlayer then
+				CachedMyPlot = plot
+				local bp = plot:FindFirstChild("Baseplate") or plot:FindFirstChild("Baseplate", true)
+				if bp and bp:IsA("BasePart") then CachedBaseplate = bp end
 				break
 			end
 		end
-		if not found then
-			row:Destroy()
-			AutoFarmRows[key] = nil
-		end
 	end
-
-	for _, name in ipairs(names) do
-		local key = string.lower(name)
-		if not AutoFarmRows[key] then
-			local row = Instance.new("TextButton")
-			row.Name = "Rarity_" .. name
-			row.Size = UDim2.new(1, 0, 0, 28)
-			row.BackgroundColor3 = Color3.fromRGB(34,35,44)
-			row.TextColor3 = Color3.fromRGB(225,228,240)
-			row.Font = Enum.Font.GothamBold
-			row.TextSize = 10
-			row.AutoButtonColor = false
-			row.Parent = AutoFarmList
-
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0,6)
-			c.Parent = row
-
-			row.MouseButton1Click:Connect(function()
-				AutoFarmTargetAll = false
-				AutoFarmTargets[key] = not AutoFarmTargets[key]
-				if not AutoFarmTargets[key] then
-					AutoFarmTargets[key] = nil
-				end
-				refreshAutoFarmRows()
-				refreshAutoFarmTargetButton()
-			end)
-
-			AutoFarmRows[key] = row
-		end
-
-		local row = AutoFarmRows[key]
-		local on = AutoFarmTargetAll or AutoFarmTargets[key] == true
-		row.Text = (on and "[开] " or "[关] ") .. name
-		row.BackgroundColor3 = on and Color3.fromRGB(48,50,65) or Color3.fromRGB(34,35,44)
-	end
-
-	AutoFarmList.Size = UDim2.new(1, 0, 0, #names * 32 + 6)
-	AutoFarmList.Visible = AutoFarmListOpen
+	return CachedMyPlot
 end
 
-refreshAutoFarmRows()
-refreshAutoFarmTargetButton()
+local function getMyPlot()
+	if CachedMyPlot and CachedMyPlot.Parent then
+		local data = CachedMyPlot:FindFirstChild("Data")
+		local owner = data and data:FindFirstChild("Owner")
+		if owner and owner:IsA("ObjectValue") and owner.Value == LocalPlayer then
+			return CachedMyPlot
+		end
+	end
+	return scanMyPlot()
+end
 
-AutoFarmTargetButton.MouseButton1Click:Connect(function()
-	AutoFarmListOpen = not AutoFarmListOpen
-	AutoFarmList.Visible = AutoFarmListOpen
-	relayoutSettings()
-end)
+getMyPlotBaseplate = function()
+	local plot = getMyPlot()
+	if not plot then return nil end
+	if CachedBaseplate and CachedBaseplate.Parent and CachedBaseplate:IsDescendantOf(plot) then return CachedBaseplate end
+	local bp = plot:FindFirstChild("Baseplate") or plot:FindFirstChild("Baseplate", true)
+	if bp and bp:IsA("BasePart") then
+		CachedBaseplate = bp
+		return bp
+	end
+	return nil
+end
 
-AutoFarmToggle.MouseButton1Click:Connect(function()
-	AutoFarmEnabled = not AutoFarmEnabled
-	AutoFarmToken += 1
-	if AutoFarmEnabled then
-		AutoFarmToggle.Text = "自动农场：开"
-		AutoFarmToggle.BackgroundColor3 = Color3.fromRGB(60,145,90)
-		task.spawn(runAutoFarm)
-	else
-		AutoFarmToggle.Text = "自动农场：关"
-		AutoFarmToggle.BackgroundColor3 = Color3.fromRGB(145,65,75)
+getBaseplateTopCFrame = function(baseplate)
+	if not baseplate or not baseplate:IsA("BasePart") or not baseplate.Parent then return nil end
+	local size = baseplate.Size
+	local cf = baseplate.CFrame
+	if not isFiniteNumber(size.Y) or size.Y <= 0 then return nil end
+	if not isValidPosition(cf.Position) then return nil end
+	local verticalOffset = (size.Y * 0.5) + HEIGHT_OFFSET
+	local target = cf * CFrame.new(0, verticalOffset, 0)
+	if not isValidPosition(target.Position) then return nil end
+	return target
+end
+
+getEggTopCFrame = function(egg)
+	if not egg or not egg:IsA("Model") or not egg.Parent then return nil end
+	local cf, size = egg:GetBoundingBox()
+	if not isValidPosition(cf.Position) then return nil end
+	if not isFiniteNumber(size.Y) or size.Y <= 0 then return nil end
+	local topY = cf.Position.Y + (size.Y * 0.5)
+	local rp = RaycastParams.new()
+	rp.FilterType = Enum.RaycastFilterType.Exclude
+	rp.FilterDescendantsInstances = { egg, Character, RenderedEggs }
+	rp.IgnoreWater = true
+	local hit = workspace:Raycast(Vector3.new(cf.Position.X, topY + 100, cf.Position.Z), Vector3.new(0, -500, 0), rp)
+	local safeY = topY + math.max(HEIGHT_OFFSET, 4)
+	if hit and hit.Position.Y + 4 > safeY then safeY = hit.Position.Y + 4 end
+	local targetPosition = Vector3.new(cf.Position.X, safeY, cf.Position.Z)
+	if not isValidPosition(targetPosition) then return nil end
+	return CFrame.new(targetPosition)
+end
+
+--==============================================================
+-- 初始扫描 + 新生成监听
+--==============================================================
+for _, obj in ipairs(RenderedEggs:GetDescendants()) do
+	if obj:IsA("Model") then registerModel(obj) end
+end
+
+local function tryRegisterEgg(object)
+	if not Running then return end
+	if not object or not object:IsA("Model") then return end
+	if not object:IsDescendantOf(RenderedEggs) then return end
+	task.defer(function()
+		if not Running or not object.Parent or not object:IsDescendantOf(RenderedEggs) then return end
+		local deadline = os.clock() + 2
+		repeat
+			if not Running or not object.Parent or not object:IsDescendantOf(RenderedEggs) then return end
+			if getRootPart(object) then break end
+			task.wait(0.05)
+		until os.clock() >= deadline
+		if not Running or not object.Parent or not object:IsDescendantOf(RenderedEggs) then return end
+		registerModel(object)
+	end)
+end
+
+Connections.DescendantAdded = RenderedEggs.DescendantAdded:Connect(tryRegisterEgg)
+
+--==============================================================
+-- 主循环
+--==============================================================
+task.spawn(function()
+	while Running do
+		getCharacter()
+		local root = RootPart
+		for model, esp in pairs(ESPs) do
+			if not model or not model.Parent or not model:IsDescendantOf(RenderedEggs) then
+				destroyESP(model)
+				local entry = EggEntries[model]
+				if entry then
+					if entry.Frame then entry.Frame:Destroy() end
+					local g = entry.Group
+					if g then
+						for i, r in ipairs(g.Rows) do
+							if r == entry.Frame then table.remove(g.Rows, i) break end
+						end
+						g.CountLabel.Text = tostring(#g.Rows)
+						if #g.Rows == 0 then
+							g.Frame:Destroy()
+							EggGroupFrames[g.Name] = nil
+						end
+					end
+					EggEntries[model] = nil
+				end
+			else
+				local eggRoot = getRootPart(model)
+				if eggRoot then
+					local distance = 0
+					if root then distance = (root.Position - eggRoot.Position).Magnitude end
+					local enabled = GlobalESPEnabled and getEggTypeEnabled(model)
+					esp.Billboard.Enabled = enabled
+					local info = getManualRarity(model.Name)
+					local color = info and info.Color or Color3.fromRGB(220, 220, 230)
+					esp.Label.TextColor3 = color
+					if esp.Highlight then
+						esp.Highlight.FillColor = color
+						esp.Highlight.OutlineColor = color
+						esp.Highlight.Enabled = enabled
+					end
+					esp.Label.Text = getESPDisplayText(model, info, root and distance or nil)
+					local entry = EggEntries[model]
+					if entry then
+						if root then
+							entry.Label.Text = model.Name .. " [" .. math.floor(distance) .. " studs]"
+						else
+							entry.Label.Text = model.Name
+						end
+					end
+				end
+			end
+		end
+		task.wait(UPDATE_RATE)
 	end
 end)
+
+--==============================================================
+-- 关闭逻辑
+--==============================================================
+shutdown = function()
+	if not Running then return end
+	Running = false
+	AutoFarmEnabled = false
+	AutoFarmToken += 1
+	FlyCancelToken += 1
+	FlyBusy = false
+	for model in pairs(ESPs) do destroyESP(model) end
+	for _, conn in pairs(Connections) do
+		if conn then pcall(function() conn:Disconnect() end) end
+	end
+	if borderAnimation then borderAnimation:Disconnect() borderAnimation = nil end
+end
+
+Window:OnClose(function()
+	if ConfigManager then
+		local cfg = ConfigManager:CreateConfig(configName)
+		cfg:Set("FlySpeed", FlySpeed)
+		cfg:Set("ESPDisplayMode", ESPDisplayMode)
+		cfg:Set("FlyToPlotAfterEgg", FlyToPlotAfterEgg)
+		cfg:Set("SelectedRarities", SelectedRarities)
+		cfg:Set("lastSave", os.date("%Y-%m-%d %H:%M:%S"))
+		cfg:Save()
+		print("[红星中心骑宠物] 配置已自动保存")
+	end
+end)
+
+Window:OnDestroy(function()
+	print("[红星中心骑宠物] 窗口已销毁")
+	shutdown()
+end)
+
+--==============================================================
+-- 完成
+--==============================================================
+showStatus("红星中心骑宠物 已加载", 3)
+print("[红星中心骑宠物] 加载完成")
