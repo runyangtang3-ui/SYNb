@@ -1,0 +1,1006 @@
+--[[ ╔══════════════════════════════════════════════════════════════════╗
+     ║ 渲染蛋 ESP + 飞行                                                 ║
+     ║                                                                  ║
+     ║ • 透视 workspace.RenderedEggs 内的所有模型                        ║
+     ║ • 任意距离显示名称 + 距离                                         ║
+     ║ • 按名称分组蛋                                                    ║
+     ║ • 折叠 / 展开分组                                                 ║
+     ║ • 全局 ESP 开/关                                                  ║
+     ║ • 基于稀有度的 ESP 筛选                                           ║
+     ║ • 搜索蛋                                                         ║
+     ║ • 飞向蛋（火山/自动农场先传送，然后无碰撞飞行）                    ║
+     ║ • 可拖动和调整大小的菜单                                          ║
+     ║ • 自动检测新生成的蛋                                              ║
+     ║ • 使用 Data.Owner 自动查找 LocalPlayer 的地块                     ║
+     ║ • workspace.Plots 最多扫描 2 次                                   ║
+     ║ • 可配置飞行速度 100-500                                          ║
+     ║ • 脚本端无传送距离限制                                            ║
+     ║ • 拾取修复：解析顶层蛋模型，等待 ProximityPrompt，                 ║
+     ║   模糊匹配其名称，未命中时调试转储                                 ║
+     ╚══════════════════════════════════════════════════════════════════╝ ]]
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local RenderedEggs = workspace:FindFirstChild("RenderedEggs")
+local Plots = workspace:FindFirstChild("Plots")
+
+if not RenderedEggs then
+	warn("[蛋 ESP] 未找到 workspace.RenderedEggs")
+	return
+end
+
+if not Plots then
+	warn("[蛋 ESP] 未找到 workspace.Plots")
+end
+
+--==============================================================
+-- 设置
+--==============================================================
+local UPDATE_RATE = 0.20
+
+-- 物体上方的实际高度
+local HEIGHT_OFFSET = 10
+local SHOW_HIGHLIGHT = true
+
+local ESPDisplayMode = "Name + Rarity" -- Name / Rarity / Name + Rarity
+
+local SUPER_OPTIMIZE = false
+local setSuperOptimization
+local refreshESPDisplay
+local applySuperOptimization
+
+-- 飞行设置
+local FlySpeed = 250
+local MIN_FLY_SPEED = 100
+local MAX_FLY_SPEED = 500
+local APPROACH_DISTANCE = 1 -- 飞行直到角色距离蛋这么多 stud
+local STAGE_HEIGHT = 15 -- 先传送到蛋上方此高度，然后无碰撞飞下去
+local PICKUP_CONFIRM_TIMEOUT = 4 -- 拾取触发后等待蛋消失的秒数
+local FlyToPlotAfterEgg = true
+
+-- 拾取设置
+local PICKUP_WAIT_TIMEOUT = 2
+
+-- 自动农场设置
+local AutoFarmEnabled = false
+local AutoFarmTargetAll = true
+local AutoFarmTargets = {}
+local AutoFarmBusy = false
+local AutoFarmToken = 0
+local AutoFarmDelay = 0.12
+local runAutoFarm = nil
+
+--==============================================================
+-- 手动稀有度配置
+--==============================================================
+-- 顺序从最高 -> 最低。
+-- 只需编辑此表，无需 workspace.EggSpawns。
+-- Order 越小 = 在 GUI 中位置越高。
+local RARITY_CONFIG = {
+	{ Name = "Etheral", Order = 1, Color = Color3.fromRGB(170, 170, 255), Eggs = { "BlackHole Egg", "Solaris Egg", "Cherub Egg", "Volcanic Egg" } },
+	{ Name = "Divine", Order = 2, Color = Color3.fromRGB(95, 190, 255), Eggs = { "Aurora Egg", "Galaxy Egg", "Bloom Egg" } },
+	{ Name = "Mythical", Order = 3, Color = Color3.fromRGB(255, 170, 255), Eggs = { "Diamond Egg", "Crystal Egg", "Skull Egg", "Asteroid Egg", "Dominus Egg", "Flaming Egg", "Sinister Egg", "Soul Egg", "Tidal Egg" } },
+	{ Name = "Legendary", Order = 4, Color = Color3.fromRGB(255, 170, 0), Eggs = { "Glass Egg", "Golden Egg" } },
+	{ Name = "Epic", Order = 5, Color = Color3.fromRGB(170, 85, 255), Eggs = { "Mushroom Egg", "Flower Egg", "Slime Egg", "Ice Egg" } },
+	{ Name = "Rare", Order = 6, Color = Color3.fromRGB(0, 170, 255), Eggs = { "Cracked Egg", "Easter Egg", "Stone Egg", "Leaf Egg" } },
+	{ Name = "Common", Order = 7, Color = Color3.fromRGB(173, 173, 173), Eggs = { "White Egg", "Brown Egg" } }
+}
+
+local RarityByName = {}
+local RarityByEggName = {}
+
+for _, info in ipairs(RARITY_CONFIG) do
+	RarityByName[string.lower(info.Name)] = info
+	for _, eggName in ipairs(info.Eggs or {}) do
+		RarityByEggName[string.lower(tostring(eggName))] = info
+	end
+end
+
+local SelectedRarities = {}
+for _, rarityInfo in ipairs(RARITY_CONFIG) do
+	SelectedRarities[string.lower(rarityInfo.Name)] = true
+end
+
+local function getManualRarity(name)
+	if not name then return nil end
+
+	local key = string.lower(tostring(name))
+
+	-- 优先精确匹配已输入的蛋名称。
+	local exactEgg = RarityByEggName[key]
+	if exactEgg then return exactEgg end
+
+	-- 允许模型名称有额外后缀/前缀但仍匹配蛋名称。
+	for eggName, info in pairs(RarityByEggName) do
+		if string.find(key, eggName, 1, true) then
+			return info
+		end
+	end
+
+	return nil
+end
+
+--==============================================================
+-- 状态
+--==============================================================
+local Running = true
+local GlobalESPEnabled = true
+
+local ESPs = {}
+local EggEntries = {}
+local EggGroups = {}
+local Connections = {}
+
+local Character = nil
+local RootPart = nil
+
+local PlotScanCount = 0
+local CachedMyPlot = nil
+local CachedBaseplate = nil
+local MAX_PLOT_SCANS = 2
+
+local updateSearch = nil
+local getEggTopCFrame = nil
+local safeTeleport = nil
+local flyToTarget = nil
+local getMyPlotBaseplate = nil
+local getBaseplateTopCFrame = nil
+
+local FlyBusy = false
+local FlyCancelToken = 0
+
+-- 前向声明（之前泄露为全局变量）
+local showStatus = nil
+local shutdown = nil
+local getEggPickupPrompt = nil
+local instantPickupEgg = nil
+local debugEggHierarchy = nil
+
+--==============================================================
+-- 工具函数
+--==============================================================
+local function isFiniteNumber(value)
+	return typeof(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function isValidPosition(position)
+	if typeof(position) ~= "Vector3" then return false end
+	return isFiniteNumber(position.X) and isFiniteNumber(position.Y) and isFiniteNumber(position.Z)
+end
+
+local function getCharacter()
+	Character = LocalPlayer.Character
+	if not Character then
+		RootPart = nil
+		return nil
+	end
+	RootPart = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
+	return Character
+end
+
+getCharacter()
+
+--==============================================================
+-- 角色
+--==============================================================
+Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(function(character)
+	Character = character
+	RootPart = character:WaitForChild("HumanoidRootPart", 10)
+end)
+
+--==============================================================
+-- 查找根部件
+--==============================================================
+local function getRootPart(model)
+	if not model or not model:IsA("Model") then return nil end
+	if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then
+		return model.PrimaryPart
+	end
+	local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("RootPart") or model:FindFirstChild("Handle")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+	return model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+-- 返回直接位于 RenderedEggs 下的顶层 Model。
+-- 防止将嵌套子模型（配件、网格组……）注册为单独的蛋，
+-- 而 ProximityPrompt 位于父级上。
+local function resolveEggModel(model)
+	local top = model
+	local parent = model.Parent
+	while parent and parent ~= RenderedEggs and parent:IsDescendantOf(RenderedEggs) do
+		if parent:IsA("Model") then
+			top = parent
+		end
+		parent = parent.Parent
+	end
+	return top
+end
+
+-- 最近接近点：蛋真实顶部（包围盒）上方 APPROACH_DISTANCE stud。
+local function getEggHoverPosition(model)
+	local ok, cf, size = pcall(function()
+		return model:GetBoundingBox()
+	end)
+	if ok and typeof(cf) == "CFrame" and typeof(size) == "Vector3" and isValidPosition(cf.Position) and isFiniteNumber(size.Y) then
+		return cf.Position + Vector3.new(0, size.Y * 0.5 + APPROACH_DISTANCE, 0)
+	end
+	local root = getRootPart(model)
+	if root then
+		return root.Position + Vector3.new(0, APPROACH_DISTANCE, 0)
+	end
+	return nil
+end
+
+-- UI 辅助函数（保持主块在 Luau 的 200 局部变量限制以下）
+local function addCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = radius
+	corner.Parent = parent
+end
+
+local function addPadding(parent, left)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, left)
+	pad.Parent = parent
+end
+
+--==============================================================
+-- GUI
+--==============================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RenderedEggESP"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+--==============================================================
+-- 主窗口
+--==============================================================
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 430, 0, 560)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.BackgroundColor3 = Color3.fromRGB(22, 23, 30)
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Parent = ScreenGui
+
+local MainExpandedSize = Main.Size
+local MainMinimized = false
+local MINIMIZED_HEIGHT = 56
+local MIN_MENU_WIDTH = 430
+local MIN_MENU_HEIGHT = 400
+local MAX_MENU_WIDTH = 640
+local MAX_MENU_HEIGHT = 760
+
+-- UI 缩放
+local MainScale = Instance.new("UIScale")
+MainScale.Scale = 0.9
+MainScale.Parent = Main
+
+local function updateMainScale()
+	local camera = workspace.CurrentCamera
+	if not camera then return end
+	local viewport = camera.ViewportSize
+	local baseWidth = math.max(Main.Size.X.Offset, 1)
+	local baseHeight = math.max(Main.Size.Y.Offset, 1)
+
+	-- 缩放整个 GUI 以适应当前设备，同时保持其宽高比。
+	-- 当玩家在竖屏和横屏之间旋转时这也有效。
+	local availableWidth = math.max(viewport.X - 20, 1)
+	local availableHeight = math.max(viewport.Y - 20, 1)
+	local scale = math.min(availableWidth / baseWidth, availableHeight / baseHeight, 0.9)
+
+	-- 防止 GUI 在小屏幕上变得无法使用地小。
+	MainScale.Scale = math.clamp(scale, 0.40, 0.90)
+end
+
+updateMainScale()
+
+if workspace.CurrentCamera then
+	Connections.ViewportSize = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateMainScale)
+end
+
+addCorner(Main, UDim.new(0, 14))
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(75, 78, 100)
+MainStroke.Thickness = 1.5
+MainStroke.Transparency = 0.2
+MainStroke.Parent = Main
+
+local ResizeHandle = Instance.new("TextButton")
+ResizeHandle.Size = UDim2.new(0, 32, 0, 32)
+ResizeHandle.AnchorPoint = Vector2.new(1, 1)
+ResizeHandle.Position = UDim2.new(1, -6, 1, -6)
+ResizeHandle.BackgroundColor3 = Color3.fromRGB(62, 64, 82)
+ResizeHandle.Text = ">"
+ResizeHandle.TextColor3 = Color3.fromRGB(240, 240, 248)
+ResizeHandle.Font = Enum.Font.GothamBold
+ResizeHandle.TextSize = 16
+ResizeHandle.ZIndex = 5
+ResizeHandle.Parent = Main
+addCorner(ResizeHandle, UDim.new(0, 8))
+--==============================================================
+-- 顶栏
+--==============================================================
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 56)
+TopBar.BackgroundColor3 = Color3.fromRGB(35, 36, 48)
+TopBar.BorderSizePixel = 0
+TopBar.ClipsDescendants = true
+TopBar.Parent = Main
+addCorner(TopBar, UDim.new(0, 14))
+
+local Accent = Instance.new("Frame")
+Accent.Size = UDim2.new(0, 5, 1, -18)
+Accent.Position = UDim2.new(0, 9, 0, 9)
+Accent.BackgroundColor3 = Color3.fromRGB(110, 130, 255)
+Accent.BorderSizePixel = 0
+Accent.Parent = TopBar
+addCorner(Accent, UDim.new(1, 0))
+
+local Title = Instance.new("TextLabel")
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 25, 0, 7)
+Title.Size = UDim2.new(1, -140, 0, 24)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 17
+Title.TextColor3 = Color3.fromRGB(245, 245, 255)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Text = "渲染蛋"
+Title.Parent = TopBar
+
+local Minimize = Instance.new("TextButton")
+Minimize.Size = UDim2.new(0, 36, 0, 36)
+Minimize.Position = UDim2.new(1, -85, 0, 10)
+Minimize.BackgroundColor3 = Color3.fromRGB(62, 64, 82)
+Minimize.Text = "-"
+Minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
+Minimize.Font = Enum.Font.GothamBold
+Minimize.TextSize = 20
+Minimize.Parent = TopBar
+addCorner(Minimize, UDim.new(0, 9))
+
+local Close = Instance.new("TextButton")
+Close.Size = UDim2.new(0, 36, 0, 36)
+Close.Position = UDim2.new(1, -45, 0, 10)
+Close.BackgroundColor3 = Color3.fromRGB(180, 60, 70)
+Close.Text = "X"
+Close.TextColor3 = Color3.fromRGB(255, 255, 255)
+Close.Font = Enum.Font.GothamBold
+Close.TextSize = 20
+Close.Parent = TopBar
+addCorner(Close, UDim.new(0, 9))
+
+--==============================================================
+-- 标签页 / 页面
+--==============================================================
+local TabBar = Instance.new("Frame")
+TabBar.Size = UDim2.new(1, -24, 0, 42)
+TabBar.Position = UDim2.new(0, 12, 0, 61)
+TabBar.BackgroundTransparency = 1
+TabBar.Parent = Main
+
+local EggsTab = Instance.new("TextButton")
+EggsTab.Size = UDim2.new(0.5, -4, 1, 0)
+EggsTab.Position = UDim2.new(0, 0, 0, 0)
+EggsTab.BackgroundColor3 = Color3.fromRGB(75, 95, 180)
+EggsTab.Text = "蛋"
+EggsTab.TextColor3 = Color3.fromRGB(255,255,255)
+EggsTab.Font = Enum.Font.GothamBold
+EggsTab.TextSize = 12
+EggsTab.Parent = TabBar
+addCorner(EggsTab, UDim.new(0, 9))
+
+local SettingsTab = Instance.new("TextButton")
+SettingsTab.Size = UDim2.new(0.5, -4, 1, 0)
+SettingsTab.Position = UDim2.new(0.5, 4, 0, 0)
+SettingsTab.BackgroundColor3 = Color3.fromRGB(42, 43, 55)
+SettingsTab.Text = "设置"
+SettingsTab.TextColor3 = Color3.fromRGB(180,183,198)
+SettingsTab.Font = Enum.Font.GothamBold
+SettingsTab.TextSize = 12
+SettingsTab.Parent = TabBar
+addCorner(SettingsTab, UDim.new(0, 9))
+
+local EggsPage = Instance.new("Frame")
+EggsPage.Name = "EggsPage"
+EggsPage.Size = UDim2.new(1, -24, 0, 447)
+EggsPage.Position = UDim2.new(0, 12, 0, 109)
+EggsPage.BackgroundTransparency = 1
+EggsPage.Parent = Main
+
+local SettingsPage = Instance.new("ScrollingFrame")
+SettingsPage.Name = "SettingsPage"
+SettingsPage.Size = UDim2.new(1, -24, 0, 447)
+SettingsPage.Position = UDim2.new(0, 12, 0, 109)
+SettingsPage.BackgroundTransparency = 1
+SettingsPage.BorderSizePixel = 0
+SettingsPage.ScrollBarThickness = 4
+SettingsPage.Visible = false
+SettingsPage.CanvasSize = UDim2.new(0,0,0,0)
+SettingsPage.Parent = Main
+
+local function setActiveTab(which)
+	local eggs = which == "Eggs"
+	EggsPage.Visible = eggs
+	SettingsPage.Visible = not eggs
+	EggsTab.BackgroundColor3 = eggs and Color3.fromRGB(75,95,180) or Color3.fromRGB(42,43,55)
+	SettingsTab.BackgroundColor3 = eggs and Color3.fromRGB(42,43,55) or Color3.fromRGB(75,95,180)
+	EggsTab.TextColor3 = eggs and Color3.fromRGB(255,255,255) or Color3.fromRGB(180,183,198)
+	SettingsTab.TextColor3 = eggs and Color3.fromRGB(180,183,198) or Color3.fromRGB(255,255,255)
+end
+
+EggsTab.MouseButton1Click:Connect(function() setActiveTab("Eggs") end)
+SettingsTab.MouseButton1Click:Connect(function() setActiveTab("Settings") end)
+
+--==============================================================
+-- 控制按钮
+--==============================================================
+local GlobalToggle = Instance.new("TextButton")
+GlobalToggle.Size = UDim2.new(0, 125, 0, 38)
+GlobalToggle.Position = UDim2.new(0, 12, 0, 69)
+GlobalToggle.BackgroundColor3 = Color3.fromRGB(60, 155, 95)
+GlobalToggle.Text = "ESP | 开"
+GlobalToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+GlobalToggle.Font = Enum.Font.GothamBold
+GlobalToggle.TextSize = 12
+GlobalToggle.Parent = Main
+addCorner(GlobalToggle, UDim.new(0, 9))
+
+local PlotTP = Instance.new("TextButton")
+PlotTP.Size = UDim2.new(0, 140, 0, 38)
+PlotTP.Position = UDim2.new(0, 145, 0, 69)
+PlotTP.BackgroundColor3 = Color3.fromRGB(78, 100, 185)
+PlotTP.Text = "我的地块"
+PlotTP.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlotTP.Font = Enum.Font.GothamBold
+PlotTP.TextSize = 12
+PlotTP.Parent = Main
+addCorner(PlotTP, UDim.new(0, 9))
+
+--==============================================================
+-- 搜索
+--==============================================================
+local SearchBox = Instance.new("Frame")
+SearchBox.Size = UDim2.new(1, -124, 0, 40)
+SearchBox.Position = UDim2.new(0, 12, 0, 117)
+SearchBox.BackgroundColor3 = Color3.fromRGB(32, 33, 43)
+SearchBox.BorderSizePixel = 0
+SearchBox.Parent = Main
+addCorner(SearchBox, UDim.new(0, 9))
+
+local SearchIcon = Instance.new("TextLabel")
+SearchIcon.Size = UDim2.new(0, 35, 1, 0)
+SearchIcon.BackgroundTransparency = 1
+SearchIcon.Text = "S"
+SearchIcon.TextColor3 = Color3.fromRGB(155, 160, 180)
+SearchIcon.Font = Enum.Font.GothamBold
+SearchIcon.TextSize = 20
+SearchIcon.Parent = SearchBox
+
+local Search = Instance.new("TextBox")
+Search.Position = UDim2.new(0, 34, 0, 0)
+Search.Size = UDim2.new(1, -40, 1, 0)
+Search.BackgroundTransparency = 1
+Search.TextColor3 = Color3.fromRGB(240, 240, 248)
+Search.PlaceholderColor3 = Color3.fromRGB(125, 128, 145)
+Search.PlaceholderText = "搜索蛋类型..."
+Search.Text = ""
+Search.ClearTextOnFocus = false
+Search.Font = Enum.Font.Gotham
+Search.TextSize = 12
+Search.TextXAlignment = Enum.TextXAlignment.Left
+Search.Parent = SearchBox
+
+--==============================================================
+-- 滚动列表
+--==============================================================
+local List = Instance.new("ScrollingFrame")
+List.Size = UDim2.new(1, -24, 0, 328)
+List.Position = UDim2.new(0, 12, 0, 165)
+List.BackgroundColor3 = Color3.fromRGB(27, 28, 36)
+List.BorderSizePixel = 0
+List.ClipsDescendants = true
+List.ScrollingDirection = Enum.ScrollingDirection.Y
+List.ScrollBarThickness = 4
+List.ScrollBarImageTransparency = 0.25
+List.CanvasSize = UDim2.new(0, 0, 0, 0)
+List.AutomaticCanvasSize = Enum.AutomaticSize.None
+List.Parent = Main
+addCorner(List, UDim.new(0, 10))
+
+local ListPadding = Instance.new("UIPadding")
+ListPadding.PaddingTop = UDim.new(0, 5)
+ListPadding.PaddingBottom = UDim.new(0, 5)
+ListPadding.PaddingLeft = UDim.new(0, 5)
+ListPadding.PaddingRight = UDim.new(0, 5)
+ListPadding.Parent = List
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 4)
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Parent = List
+
+ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	List.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 12)
+end)
+
+--==============================================================
+-- 状态
+--==============================================================
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -24, 0, 40)
+Status.Position = UDim2.new(0, 12, 0, 508)
+Status.BackgroundColor3 = Color3.fromRGB(29, 30, 39)
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 12
+Status.TextTruncate = Enum.TextTruncate.AtEnd
+Status.TextYAlignment = Enum.TextYAlignment.Center
+Status.TextColor3 = Color3.fromRGB(145, 149, 165)
+Status.TextXAlignment = Enum.TextXAlignment.Left
+Status.Text = ""
+Status.Parent = Main
+Status.Visible = false
+addCorner(Status, UDim.new(0, 8))
+
+local StatusPadding = Instance.new("UIPadding")
+StatusPadding.PaddingLeft = UDim.new(0, 10)
+StatusPadding.PaddingRight = UDim.new(0, 10)
+StatusPadding.Parent = Status
+
+-- 将现有控件移入蛋页面。
+GlobalToggle.Parent = SettingsPage
+GlobalToggle.Position = UDim2.new(0, 0, 0, 0)
+
+PlotTP.Parent = SettingsPage
+PlotTP.Position = UDim2.new(0, 0, 0, 46)
+
+SearchBox.Parent = EggsPage
+SearchBox.Position = UDim2.new(0, 0, 0, 46)
+
+List.Parent = EggsPage
+List.Position = UDim2.new(0, 0, 0, 94)
+List.Size = UDim2.new(1, 0, 0, 300)
+
+Status.Parent = EggsPage
+Status.Position = UDim2.new(0, 0, 0, 401)
+Status.Size = UDim2.new(1, 0, 0, 40)
+
+local FlyStateLabel = Instance.new("TextLabel")
+FlyStateLabel.Size = UDim2.new(1, 0, 0, 36)
+FlyStateLabel.Position = UDim2.new(0, 0, 0, 92)
+FlyStateLabel.BackgroundColor3 = Color3.fromRGB(32,33,43)
+FlyStateLabel.Text = "飞行：就绪 | 速度：" .. tostring(FlySpeed)
+FlyStateLabel.TextColor3 = Color3.fromRGB(190,194,210)
+FlyStateLabel.Font = Enum.Font.Gotham
+FlyStateLabel.TextSize = 11
+FlyStateLabel.TextXAlignment = Enum.TextXAlignment.Left
+FlyStateLabel.Parent = SettingsPage
+addPadding(FlyStateLabel, 10)
+addCorner(FlyStateLabel, UDim.new(0,8))
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1,0,0,28)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "飞行速度：" .. tostring(FlySpeed)
+SpeedLabel.TextColor3 = Color3.fromRGB(230,232,242)
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextSize = 12
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.LayoutOrder = 3
+SpeedLabel.Parent = SettingsPage
+
+local SpeedBar = Instance.new("Frame")
+SpeedBar.Size = UDim2.new(1,0,0,14)
+SpeedBar.BackgroundColor3 = Color3.fromRGB(45,46,58)
+SpeedBar.LayoutOrder = 4
+SpeedBar.Parent = SettingsPage
+addCorner(SpeedBar, UDim.new(1,0))
+
+local SpeedFill = Instance.new("Frame")
+SpeedFill.Size = UDim2.new((FlySpeed-MIN_FLY_SPEED)/(MAX_FLY_SPEED-MIN_FLY_SPEED),0,1,0)
+SpeedFill.BackgroundColor3 = Color3.fromRGB(90,120,235)
+SpeedFill.BorderSizePixel = 0
+SpeedFill.Parent = SpeedBar
+addCorner(SpeedFill, UDim.new(1,0))
+
+local SpeedHit = Instance.new("TextButton")
+SpeedHit.Size = UDim2.new(1,0,1,0)
+SpeedHit.BackgroundTransparency = 1
+SpeedHit.Text = ""
+SpeedHit.Parent = SpeedBar
+
+local function setFlySpeed(value)
+	FlySpeed = math.clamp(math.floor(tonumber(value) or FlySpeed), MIN_FLY_SPEED, MAX_FLY_SPEED)
+	local alpha = (FlySpeed-MIN_FLY_SPEED)/(MAX_FLY_SPEED-MIN_FLY_SPEED)
+	SpeedFill.Size = UDim2.new(alpha,0,1,0)
+	SpeedLabel.Text = "飞行速度：" .. tostring(FlySpeed)
+	FlyStateLabel.Text = (FlyBusy and "飞行：飞行中" or "飞行：就绪") .. " | 速度：" .. tostring(FlySpeed)
+end
+
+SpeedHit.MouseButton1Down:Connect(function()
+	local mouse = LocalPlayer:GetMouse()
+	local function update()
+		local alpha = math.clamp((mouse.X - SpeedBar.AbsolutePosition.X) / SpeedBar.AbsoluteSize.X, 0, 1)
+		setFlySpeed(MIN_FLY_SPEED + alpha * (MAX_FLY_SPEED-MIN_FLY_SPEED))
+	end
+	update()
+	local moveConn
+	moveConn = UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			update()
+		end
+	end)
+	local endConn
+	endConn = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			moveConn:Disconnect()
+			endConn:Disconnect()
+		end
+	end)
+end)
+
+local ReturnLabel = Instance.new("TextLabel")
+ReturnLabel.Size = UDim2.new(1,0,0,32)
+ReturnLabel.BackgroundColor3 = Color3.fromRGB(32,33,43)
+ReturnLabel.Text = "到达蛋后自动返回我的地块：开"
+ReturnLabel.TextColor3 = Color3.fromRGB(225,228,240)
+ReturnLabel.Font = Enum.Font.Gotham
+ReturnLabel.TextSize = 11
+ReturnLabel.TextXAlignment = Enum.TextXAlignment.Left
+ReturnLabel.LayoutOrder = 5
+ReturnLabel.Parent = SettingsPage
+addPadding(ReturnLabel, 10)
+addCorner(ReturnLabel, UDim.new(0,8))
+
+local DisplayTitle = Instance.new("TextButton")
+DisplayTitle.Size = UDim2.new(1,0,0,34)
+DisplayTitle.BackgroundColor3 = Color3.fromRGB(32,33,43)
+DisplayTitle.Text = "ESP 显示 [+]"
+DisplayTitle.TextColor3 = Color3.fromRGB(240,242,250)
+DisplayTitle.Font = Enum.Font.GothamBold
+DisplayTitle.TextSize = 12
+DisplayTitle.TextXAlignment = Enum.TextXAlignment.Left
+DisplayTitle.AutoButtonColor = false
+DisplayTitle.Parent = SettingsPage
+addPadding(DisplayTitle, 10)
+addCorner(DisplayTitle, UDim.new(0,8))
+local DisplayFrame = Instance.new("Frame")
+DisplayFrame.Size = UDim2.new(1,0,0,102)
+DisplayFrame.BackgroundColor3 = Color3.fromRGB(29,30,39)
+DisplayFrame.Visible = false
+DisplayFrame.Parent = SettingsPage
+addCorner(DisplayFrame, UDim.new(0,9))
+
+local DisplayLayout = Instance.new("UIListLayout")
+DisplayLayout.Padding = UDim.new(0,5)
+DisplayLayout.Parent = DisplayFrame
+
+local DisplayPad = Instance.new("UIPadding")
+DisplayPad.PaddingTop = UDim.new(0,7)
+DisplayPad.PaddingLeft = UDim.new(0,8)
+DisplayPad.PaddingRight = UDim.new(0,8)
+DisplayPad.Parent = DisplayFrame
+
+local DisplayOpen = false
+local DisplayOptions = {"Name", "Rarity", "Name + Rarity"}
+local DisplayButtons = {}
+local relayoutSettings
+
+local function updateDisplayUI()
+	for mode, button in pairs(DisplayButtons) do
+		local selected = ESPDisplayMode == mode
+		button.Text = (selected and "[开] " or "[关] ") .. mode
+		button.BackgroundColor3 = selected and Color3.fromRGB(48,50,65) or Color3.fromRGB(34,35,44)
+	end
+end
+
+for _, mode in ipairs(DisplayOptions) do
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1,0,0,26)
+	button.BackgroundColor3 = Color3.fromRGB(34,35,44)
+	button.TextColor3 = Color3.fromRGB(225,228,240)
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 10
+	button.Text = "[关] " .. mode
+	button.AutoButtonColor = false
+	button.Parent = DisplayFrame
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,6)
+	c.Parent = button
+
+	DisplayButtons[mode] = button
+
+	button.MouseButton1Click:Connect(function()
+		ESPDisplayMode = mode
+		DisplayTitle.Text = "ESP 显示：" .. mode .. (DisplayOpen and " [-]" or " [+]")
+		updateDisplayUI()
+		refreshESPDisplay()
+	end)
+end
+
+local function setDisplayOpen(open)
+	DisplayOpen = open
+	DisplayFrame.Visible = open
+	DisplayTitle.Text = "ESP 显示：" .. ESPDisplayMode .. (open and " [-]" or " [+]")
+	if relayoutSettings then relayoutSettings() end
+end
+
+DisplayTitle.MouseButton1Click:Connect(function()
+	setDisplayOpen(not DisplayOpen)
+end)
+
+updateDisplayUI()
+
+local RarityTitle = Instance.new("TextButton")
+RarityTitle.Size = UDim2.new(1,0,0,34)
+RarityTitle.BackgroundColor3 = Color3.fromRGB(32,33,43)
+RarityTitle.Text = "蛋稀有度过滤 [+]"
+RarityTitle.TextColor3 = Color3.fromRGB(240,242,250)
+RarityTitle.Font = Enum.Font.GothamBold
+RarityTitle.TextSize = 12
+RarityTitle.TextXAlignment = Enum.TextXAlignment.Left
+RarityTitle.LayoutOrder = 6
+RarityTitle.AutoButtonColor = false
+RarityTitle.Parent = SettingsPage
+addPadding(RarityTitle, 10)
+addCorner(RarityTitle, UDim.new(0,8))
+
+local RarityFrame = Instance.new("Frame")
+RarityFrame.Size = UDim2.new(1,0,0,180)
+RarityFrame.BackgroundColor3 = Color3.fromRGB(29,30,39)
+RarityFrame.LayoutOrder = 7
+RarityFrame.Visible = false
+RarityFrame.Parent = SettingsPage
+addCorner(RarityFrame, UDim.new(0,9))
+
+local RarityGrid = Instance.new("UIGridLayout")
+RarityGrid.CellSize = UDim2.new(0.5,-6,0,28)
+RarityGrid.CellPadding = UDim2.new(0,6,0,5)
+RarityGrid.SortOrder = Enum.SortOrder.LayoutOrder
+RarityGrid.Parent = RarityFrame
+
+local RarityPad = Instance.new("UIPadding")
+RarityPad.PaddingTop = UDim.new(0,8)
+RarityPad.PaddingLeft = UDim.new(0,8)
+RarityPad.PaddingRight = UDim.new(0,8)
+RarityPad.Parent = RarityFrame
+
+local function updateRarityFilterUI()
+	for _, child in ipairs(RarityFrame:GetChildren()) do
+		if child:IsA("TextButton") then
+			local rarityKey = child:GetAttribute("RarityKey")
+			local info = RarityByName[rarityKey]
+			local on = SelectedRarities[rarityKey] == true
+			child.Text = (on and "[开] " or "[关] ") .. (info and info.Name or rarityKey)
+			child.TextColor3 = info and info.Color or Color3.fromRGB(220,220,230)
+			child.BackgroundColor3 = on and Color3.fromRGB(48,50,65) or Color3.fromRGB(34,35,44)
+		end
+	end
+end
+
+for _, info in ipairs(RARITY_CONFIG) do
+	local key = string.lower(info.Name)
+	local button = Instance.new("TextButton")
+	button.LayoutOrder = info.Order
+	button:SetAttribute("RarityKey", key)
+	button.BackgroundColor3 = Color3.fromRGB(48,50,65)
+	button.Text = "[开] " .. info.Name
+	button.TextColor3 = info.Color
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 11
+	button.AutoButtonColor = false
+	button.Parent = RarityFrame
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,7)
+	c.Parent = button
+
+	button.MouseButton1Click:Connect(function()
+		SelectedRarities[key] = not SelectedRarities[key]
+		updateRarityFilterUI()
+		if updateSearch then updateSearch() end
+	end)
+end
+
+local RarityFilterOpen = false
+local AutoReturnButton
+
+local function setRarityFilterOpen(open)
+	RarityFilterOpen = open
+	RarityFrame.Visible = open
+	RarityTitle.Text = open and "蛋稀有度过滤 [-]" or "蛋稀有度过滤 [+]"
+	if relayoutSettings then relayoutSettings() end
+end
+
+RarityTitle.MouseButton1Click:Connect(function()
+	setRarityFilterOpen(not RarityFilterOpen)
+end)
+
+AutoReturnButton = Instance.new("TextButton")
+AutoReturnButton.Size = UDim2.new(1,0,0,34)
+AutoReturnButton.BackgroundColor3 = Color3.fromRGB(60,145,90)
+AutoReturnButton.Text = "自动返回：开"
+AutoReturnButton.TextColor3 = Color3.fromRGB(255,255,255)
+AutoReturnButton.Font = Enum.Font.GothamBold
+AutoReturnButton.TextSize = 11
+AutoReturnButton.LayoutOrder = 8
+AutoReturnButton.Parent = SettingsPage
+addCorner(AutoReturnButton, UDim.new(0,8))
+
+local SuperOptimizeButton = Instance.new("TextButton")
+SuperOptimizeButton.Size = UDim2.new(1,0,0,34)
+SuperOptimizeButton.BackgroundColor3 = SUPER_OPTIMIZE and Color3.fromRGB(60,145,90) or Color3.fromRGB(145,65,75)
+SuperOptimizeButton.Text = SUPER_OPTIMIZE and "超级优化：开" or "超级优化：关"
+SuperOptimizeButton.TextColor3 = Color3.fromRGB(255,255,255)
+SuperOptimizeButton.Font = Enum.Font.GothamBold
+SuperOptimizeButton.TextSize = 11
+SuperOptimizeButton.Parent = SettingsPage
+addCorner(SuperOptimizeButton, UDim.new(0,8))
+
+SuperOptimizeButton.MouseButton1Click:Connect(function()
+	if setSuperOptimization then setSuperOptimization(not SUPER_OPTIMIZE) end
+end)
+
+--==============================================================
+-- 自动农场
+--==============================================================
+local AutoFarmTitle = Instance.new("TextLabel")
+AutoFarmTitle.Size = UDim2.new(1,0,0,28)
+AutoFarmTitle.BackgroundTransparency = 1
+AutoFarmTitle.Text = "自动农场"
+AutoFarmTitle.TextColor3 = Color3.fromRGB(240,242,250)
+AutoFarmTitle.Font = Enum.Font.GothamBold
+AutoFarmTitle.TextSize = 12
+AutoFarmTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoFarmTitle.Parent = SettingsPage
+
+local AutoFarmToggle = Instance.new("TextButton")
+AutoFarmToggle.Size = UDim2.new(1,0,0,34)
+AutoFarmToggle.BackgroundColor3 = Color3.fromRGB(145,65,75)
+AutoFarmToggle.Text = "自动农场：关"
+AutoFarmToggle.TextColor3 = Color3.fromRGB(255,255,255)
+AutoFarmToggle.Font = Enum.Font.GothamBold
+AutoFarmToggle.TextSize = 11
+AutoFarmToggle.AutoButtonColor = false
+AutoFarmToggle.Parent = SettingsPage
+addCorner(AutoFarmToggle, UDim.new(0,8))
+
+local AutoFarmTargetButton = Instance.new("TextButton")
+AutoFarmTargetButton.Size = UDim2.new(1,0,0,34)
+AutoFarmTargetButton.BackgroundColor3 = Color3.fromRGB(48,50,65)
+AutoFarmTargetButton.Text = "自动农场稀有度"
+AutoFarmTargetButton.TextColor3 = Color3.fromRGB(230,232,242)
+AutoFarmTargetButton.Font = Enum.Font.GothamBold
+AutoFarmTargetButton.TextSize = 11
+AutoFarmTargetButton.TextXAlignment = Enum.TextXAlignment.Left
+AutoFarmTargetButton.AutoButtonColor = false
+AutoFarmTargetButton.Parent = SettingsPage
+addPadding(AutoFarmTargetButton, 10)
+addCorner(AutoFarmTargetButton, UDim.new(0,8))
+
+local AutoFarmList = Instance.new("Frame")
+AutoFarmList.Size = UDim2.new(1,0,0,0)
+AutoFarmList.BackgroundTransparency = 1
+AutoFarmList.BorderSizePixel = 0
+AutoFarmList.Visible = true
+AutoFarmList.Parent = SettingsPage
+
+local AutoFarmListLayout = Instance.new("UIListLayout")
+AutoFarmListLayout.Padding = UDim.new(0,4)
+AutoFarmListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+AutoFarmListLayout.Parent = AutoFarmList
+
+local AutoFarmListOpen = false
+local AutoFarmRows = {}
+
+local function refreshAutoFarmTargetButton()
+	local count = 0
+	for _ in pairs(AutoFarmTargets) do count += 1 end
+
+	if AutoFarmTargetAll then
+		AutoFarmTargetButton.Text = "自动农场稀有度：全部"
+	elseif count == 0 then
+		AutoFarmTargetButton.Text = "自动农场稀有度：无"
+	elseif count == 1 then
+		for key in pairs(AutoFarmTargets) do
+			AutoFarmTargetButton.Text = "自动农场稀有度：" .. tostring(key)
+			break
+		end
+	else
+		AutoFarmTargetButton.Text = "自动农场稀有度：" .. tostring(count) .. " 种"
+	end
+end
+
+local function refreshAutoFarmRows()
+	local names = {}
+	for _, rarityInfo in ipairs(RARITY_CONFIG) do
+		table.insert(names, tostring(rarityInfo.Name))
+	end
+
+	for key, row in pairs(AutoFarmRows) do
+		local found = false
+		for _, name in ipairs(names) do
+			if key == string.lower(name) then
+				found = true
+				break
+			end
+		end
+		if not found then
+			row:Destroy()
+			AutoFarmRows[key] = nil
+		end
+	end
+
+	for _, name in ipairs(names) do
+		local key = string.lower(name)
+		if not AutoFarmRows[key] then
+			local row = Instance.new("TextButton")
+			row.Name = "Rarity_" .. name
+			row.Size = UDim2.new(1, 0, 0, 28)
+			row.BackgroundColor3 = Color3.fromRGB(34,35,44)
+			row.TextColor3 = Color3.fromRGB(225,228,240)
+			row.Font = Enum.Font.GothamBold
+			row.TextSize = 10
+			row.AutoButtonColor = false
+			row.Parent = AutoFarmList
+
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0,6)
+			c.Parent = row
+
+			row.MouseButton1Click:Connect(function()
+				AutoFarmTargetAll = false
+				AutoFarmTargets[key] = not AutoFarmTargets[key]
+				if not AutoFarmTargets[key] then
+					AutoFarmTargets[key] = nil
+				end
+				refreshAutoFarmRows()
+				refreshAutoFarmTargetButton()
+			end)
+
+			AutoFarmRows[key] = row
+		end
+
+		local row = AutoFarmRows[key]
+		local on = AutoFarmTargetAll or AutoFarmTargets[key] == true
+		row.Text = (on and "[开] " or "[关] ") .. name
+		row.BackgroundColor3 = on and Color3.fromRGB(48,50,65) or Color3.fromRGB(34,35,44)
+	end
+
+	AutoFarmList.Size = UDim2.new(1, 0, 0, #names * 32 + 6)
+	AutoFarmList.Visible = AutoFarmListOpen
+end
+
+refreshAutoFarmRows()
+refreshAutoFarmTargetButton()
+
+AutoFarmTargetButton.MouseButton1Click:Connect(function()
+	AutoFarmListOpen = not AutoFarmListOpen
+	AutoFarmList.Visible = AutoFarmListOpen
+	relayoutSettings()
+end)
+
+AutoFarmToggle.MouseButton1Click:Connect(function()
+	AutoFarmEnabled = not AutoFarmEnabled
+	AutoFarmToken += 1
+	if AutoFarmEnabled then
+		AutoFarmToggle.Text = "自动农场：开"
+		AutoFarmToggle.BackgroundColor3 = Color3.fromRGB(60,145,90)
+		task.spawn(runAutoFarm)
+	else
+		AutoFarmToggle.Text = "自动农场：关"
+		AutoFarmToggle.BackgroundColor3 = Color3.fromRGB(145,65,75)
+	end
+end)
