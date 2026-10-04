@@ -72,6 +72,7 @@ local songList = {
 
 -- ============ 服务器脚本列表 ============
 local serverList = {
+    {"清理一片枫叶", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E6%9E%AB%E5%8F%B6"},
     {"骑宠物", "https://raw.githubusercontent.com/runyangtang3-ui/SYNb/refs/heads/main/%E9%AA%91"},
     {"谁放屁了", "https://raw.githubusercontent.com/runyangtang3-ui/Good/refs/heads/main/%E6%94%BE%E5%B1%81"},
     {"偷一个蛋", "https://raw.githubusercontent.com/insanecontenty2k-blip/scriptss/main/universalscriptsofop"},
