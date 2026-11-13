@@ -1,0 +1,2631 @@
+--!nocheck
+local cloneref = cloneref or function(inst)
+	return inst
+end
+
+local GuiService = cloneref(game:GetService("GuiService"))
+local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local RunService = cloneref(game:GetService("RunService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local Workspace = cloneref(game:GetService("Workspace"))
+
+local LocalPlayer = Players.LocalPlayer
+
+local Env = (getgenv and getgenv()) or _G
+if Env.FTAP_Obsidian_Cleanup then
+	pcall(Env.FTAP_Obsidian_Cleanup)
+end
+
+-- ============================================================================
+-- UI 库：WindUI（Windows 11 风格）+ Obsidian 调用风格适配层
+-- ============================================================================
+local function LoadWindUI()
+	local urls = {
+		"https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua",
+		"https://github.com/Footagesus/WindUI/releases/latest/download/main.lua",
+	}
+	for _, url in ipairs(urls) do
+		local ok, result = pcall(function()
+			return loadstring(game:HttpGet(url))()
+		end)
+		if ok and type(result) == "table" then
+			return result
+		end
+	end
+	return nil
+end
+
+local WindUI = LoadWindUI()
+if WindUI == nil then
+	warn("[红星hx中心] WindUI 加载失败，界面将无法显示，请检查网络或执行器 HTTP 权限")
+end
+
+local Options = {}
+local Toggles = {}
+
+local LibWindow: any = nil
+
+-- 不同 WindUI 版本的元素方法名不完全一致，这里逐项尝试，失败也不报错
+local function SafeIndex(obj, key)
+	if obj == nil then
+		return nil
+	end
+	local ok, value = pcall(function()
+		return obj[key]
+	end)
+	if ok then
+		return value
+	end
+	return nil
+end
+
+local function TryCall(obj, method, ...)
+	local fn = SafeIndex(obj, method)
+	if type(fn) ~= "function" then
+		return false
+	end
+	local ok = pcall(fn, obj, ...)
+	return ok
+end
+
+local function TryMethods(obj, methods, ...)
+	for _, method in ipairs(methods) do
+		if TryCall(obj, method, ...) then
+			return true
+		end
+	end
+	return false
+end
+
+-- ---------------------------------------------------------------------------
+-- 选项状态：脚本逻辑统一通过 Options.xxx.Value / :SetValue() 读写
+-- ---------------------------------------------------------------------------
+local OptionState = {}
+OptionState.__index = OptionState
+
+local function NewOption(defaultValue)
+	return setmetatable({ Value = defaultValue }, OptionState)
+end
+
+function OptionState:SetValue(value)
+	self.Value = value
+	if self._raw ~= nil then
+		TryMethods(self._raw, { "Set", "SetValue", "SetState" }, value)
+	end
+end
+
+function OptionState:GetValue()
+	return self.Value
+end
+
+function OptionState:SetValues(values)
+	self.Values = values
+	if self._raw ~= nil then
+		TryMethods(self._raw, { "Refresh", "SetValues", "Update" }, values)
+	end
+end
+
+local function RegisterOption(key, state)
+	Options[key] = state
+	Toggles[key] = state
+	return state
+end
+
+-- ---------------------------------------------------------------------------
+-- 布局容器
+-- ---------------------------------------------------------------------------
+local function AddElement(container, kind, opts)
+	local fn = SafeIndex(container, kind)
+	if type(fn) ~= "function" then
+		return nil
+	end
+	-- WindUI 不同版本分别使用 Desc / Description 作为说明字段，两者都传以兼容
+	if opts.Desc ~= nil and opts.Description == nil then
+		opts.Description = opts.Desc
+	end
+	local ok, result = pcall(fn, container, opts)
+	if not ok then
+		return nil
+	end
+	if result ~= nil then
+		return result
+	end
+	return true
+end
+
+local Group = {}
+Group.__index = Group
+
+local function NewGroup(tab, title)
+	local section = nil
+	if type(SafeIndex(tab, "Section")) == "function" then
+		local ok, result = pcall(function()
+			return tab:Section({ Title = title })
+		end)
+		if ok and result ~= nil then
+			section = result
+		end
+	end
+	return setmetatable({ _tab = tab, _section = section, _title = title }, Group)
+end
+
+function Group:_Add(kind, opts)
+	local element = AddElement(self._section, kind, opts)
+	if element == nil then
+		element = AddElement(self._tab, kind, opts)
+	end
+	return element
+end
+
+function Group:AddToggle(key, cfg)
+	cfg = cfg or {}
+	local state = NewOption(cfg.Default == nil and false or cfg.Default)
+	state._raw = self:_Add("Toggle", {
+		Title = cfg.Text or key,
+		Desc = cfg.Desc,
+		Value = state.Value,
+		Default = state.Value,
+		Callback = function(value)
+			state.Value = value
+			if cfg.Callback then
+				cfg.Callback(value)
+			end
+		end,
+	})
+	return RegisterOption(key, state)
+end
+
+function Group:AddSlider(key, cfg)
+	cfg = cfg or {}
+	local state = NewOption(cfg.Default == nil and 0 or cfg.Default)
+	local step = cfg.Step
+	if step == nil and (cfg.Rounding or 0) == 0 then
+		step = 1
+	end
+	state._raw = self:_Add("Slider", {
+		Title = cfg.Text or key,
+		Desc = cfg.Desc,
+		Value = state.Value,
+		Min = cfg.Min or 0,
+		Max = cfg.Max or 100,
+		Step = step,
+		Rounding = cfg.Rounding,
+		Callback = function(value)
+			state.Value = value
+			if cfg.Callback then
+				cfg.Callback(value)
+			end
+		end,
+	})
+	if state._raw == nil then
+		-- 老版本 WindUI 的滑动条参数以表格形式放在 Value 内
+		state._raw = self:_Add("Slider", {
+			Title = cfg.Text or key,
+			Desc = cfg.Desc,
+			Value = { Min = cfg.Min or 0, Max = cfg.Max or 100, Default = state.Value },
+			Callback = function(value)
+				state.Value = value
+				if cfg.Callback then
+					cfg.Callback(value)
+				end
+			end,
+		})
+	end
+	return RegisterOption(key, state)
+end
+
+function Group:AddDropdown(key, cfg)
+	cfg = cfg or {}
+	local values = cfg.Values or {}
+	local initial = cfg.Default
+	if type(initial) == "number" then
+		initial = values[initial] or values[1]
+	elseif initial == nil then
+		initial = values[1]
+	end
+	local state = NewOption(initial)
+	state.Values = values
+	state._raw = self:_Add("Dropdown", {
+		Title = cfg.Text or key,
+		Desc = cfg.Desc,
+		Values = values,
+		Value = initial,
+		Default = initial,
+		Multi = cfg.Multi or false,
+		Searchable = cfg.Searchable,
+		Callback = function(value)
+			state.Value = value
+			if cfg.Callback then
+				cfg.Callback(value)
+			end
+		end,
+	})
+	return RegisterOption(key, state)
+end
+
+function Group:AddButton(cfg)
+	cfg = cfg or {}
+	return self:_Add("Button", {
+		Title = cfg.Text or "按钮",
+		Desc = cfg.Desc,
+		Callback = function()
+			if cfg.Func then
+				cfg.Func()
+			end
+		end,
+	})
+end
+
+function Group:AddDivider()
+	if self:_Add("Divider", {}) == nil then
+		return nil
+	end
+	return true
+end
+
+local LabelHandle = {}
+LabelHandle.__index = LabelHandle
+
+function LabelHandle:SetText(text)
+	self.Text = text
+	if self._raw ~= nil and self._raw ~= true then
+		if not TryMethods(self._raw, { "SetTitle", "SetText", "Set" }, text) then
+			local inner = SafeIndex(self._raw, "Title")
+			if inner ~= nil and typeof(inner) == "Instance" then
+				pcall(function()
+					inner.Text = text
+				end)
+			end
+		end
+	end
+end
+
+function Group:AddLabel(text)
+	local raw = self:_Add("Paragraph", { Title = text, Desc = "" })
+	return setmetatable({ Text = text, _raw = raw }, LabelHandle)
+end
+
+function Group:AddKeybind(key, cfg)
+	cfg = cfg or {}
+	local state = NewOption(cfg.Default or "RightControl")
+	state._raw = self:_Add("Keybind", {
+		Title = cfg.Text or "菜单按键",
+		Value = Enum.KeyCode.RightControl,
+		Default = Enum.KeyCode.RightControl,
+		Callback = function(value)
+			local code = value
+			if typeof(value) ~= "EnumItem" then
+				code = Enum.KeyCode[value] or Enum.KeyCode.RightControl
+			end
+			state.Value = code
+			if LibWindow ~= nil then
+				TryCall(LibWindow, "SetToggleKey", code)
+			end
+		end,
+	})
+	return RegisterOption(key, state)
+end
+
+-- ---------------------------------------------------------------------------
+-- 窗口与标签页
+-- ---------------------------------------------------------------------------
+local TabWrap = {}
+TabWrap.__index = TabWrap
+
+function TabWrap:AddLeftGroupbox(title)
+	return NewGroup(self._tab, title)
+end
+
+function TabWrap:AddRightGroupbox(title)
+	return NewGroup(self._tab, title)
+end
+
+local WindowWrap = {}
+WindowWrap.__index = WindowWrap
+
+function WindowWrap:AddTab(title, icon)
+	local tab = nil
+	local attempts = {
+		function()
+			return self._win:Tab({ Title = title, Icon = icon })
+		end,
+		function()
+			return self._win:Tab({ Title = title, Icon = "circle" })
+		end,
+		function()
+			return self._win:Tab({ Title = title })
+		end,
+	}
+	for _, attempt in ipairs(attempts) do
+		local ok, result = pcall(attempt)
+		if ok and result ~= nil then
+			tab = result
+			break
+		end
+	end
+	return setmetatable({ _tab = tab }, TabWrap)
+end
+
+-- ---------------------------------------------------------------------------
+-- Library 适配对象（保留原脚本的 Library.xxx 调用方式）
+-- ---------------------------------------------------------------------------
+local UnloadCallbacks = {}
+
+local Library = {
+	Options = Options,
+	Toggles = Toggles,
+	KeybindFrame = { Visible = true },
+	Unloaded = false,
+	ToggleKeybind = nil,
+}
+
+function Library:CreateWindow(cfg)
+	cfg = cfg or {}
+	local full = {
+		Title = cfg.Title or "脚本中心",
+		Author = cfg.Author or "",
+		Folder = cfg.Folder or "hongxinghx",
+		Icon = cfg.Icon or "flame",
+		Size = UDim2.fromOffset(680, 480),
+		MinSize = Vector2.new(560, 380),
+		Theme = "Dark",
+		Transparent = true,
+		Acrylic = true,
+		Resizable = true,
+		NewElements = true,
+		ToggleKey = Enum.KeyCode.RightControl,
+		SideBarWidth = 190,
+		OpenButton = {
+			Title = cfg.Title or "脚本中心",
+			Icon = "flame",
+			Enabled = true,
+			Draggable = true,
+			OnlyMobile = false,
+		},
+		User = { Enabled = true, Anonymous = true },
+	}
+	local minimal = {
+		Title = cfg.Title or "脚本中心",
+		Author = cfg.Author or "",
+		Folder = cfg.Folder or "hongxinghx",
+		ToggleKey = Enum.KeyCode.RightControl,
+	}
+
+	local ok, result = pcall(function()
+		return WindUI:CreateWindow(full)
+	end)
+	if not ok or result == nil then
+		ok, result = pcall(function()
+			return WindUI:CreateWindow(minimal)
+		end)
+	end
+	LibWindow = if ok then result else nil
+	return setmetatable({ _win = LibWindow }, WindowWrap)
+end
+
+function Library:Unload()
+	Library.Unloaded = true
+	if LibWindow ~= nil then
+		TryCall(LibWindow, "Destroy")
+		local root = SafeIndex(LibWindow, "Root")
+		if root ~= nil then
+			pcall(function()
+				root:Destroy()
+			end)
+		end
+	end
+end
+
+function Library:OnUnload(callback)
+	table.insert(UnloadCallbacks, callback)
+end
+
+function Library:Notify(title, content)
+	pcall(function()
+		WindUI:Notify({ Title = title, Content = content, Duration = 5 })
+	end)
+end
+
+-- ============================================================================
+-- GAME REMOTES & MODULES
+-- ============================================================================
+local GrabEvents = ReplicatedStorage:WaitForChild("GrabEvents")
+local CreateGrabLine = GrabEvents:WaitForChild("CreateGrabLine")
+local ExtendGrabLine = GrabEvents:WaitForChild("ExtendGrabLine")
+local DestroyGrabLine = GrabEvents:WaitForChild("DestroyGrabLine")
+local SetNetworkOwner = GrabEvents:WaitForChild("SetNetworkOwner")
+
+local CharacterEvents = ReplicatedStorage:WaitForChild("CharacterEvents")
+local Struggle = CharacterEvents:WaitForChild("Struggle")
+local RagdollRemote = CharacterEvents:FindFirstChild("RagdollRemote")
+
+local MenuToys = ReplicatedStorage:WaitForChild("MenuToys")
+local SpawnToyRF = MenuToys:WaitForChild("SpawnToyRemoteFunction")
+local BuyToyRF = MenuToys:WaitForChild("BuyToyRemoteFunction")
+local DestroyToyRE = MenuToys:WaitForChild("DestroyToy")
+local MenuToysData = require(MenuToys:WaitForChild("MenuToysData"))
+
+local DataEvents = ReplicatedStorage:WaitForChild("DataEvents")
+local UpdateLineColorsEvent = DataEvents:WaitForChild("UpdateLineColorsEvent")
+
+local BombEvents = ReplicatedStorage:WaitForChild("BombEvents")
+local BombExplode = BombEvents:WaitForChild("BombExplode")
+local ExplosionMaker = require(ReplicatedStorage:WaitForChild("ExplosionMaker"))
+
+local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+local RaycastModule = require(PlayerScripts:WaitForChild("RaycastModule"))
+
+-- ============================================================================
+-- STATE & CACHES
+-- ============================================================================
+local Connections: { RBXScriptConnection } = {}
+local PCLDHighlights: { [Instance]: Highlight } = {}
+local OriginalExplodeFn = ExplosionMaker.Explode
+local OriginalRaycastFn = RaycastModule.RaycastFromCam
+
+local LastSafeCFrame: CFrame? = nil
+local SafeAntiGrabCFrame: CFrame? = nil
+local AntiGrabGraceUntil: number = 0
+local AntiGrabAnchorUntil: number = 0
+local WasAnchoredByAntiGrab: boolean = false
+
+local ActiveGrabTarget: BasePart? = nil
+local CustomGrabDistance: number = 20
+local SilentAimCandidate: BasePart? = nil
+local GucciVehicle: Model? = nil
+local RainbowHue = 0
+local FPSCounter = 60
+
+local HazardCache = {
+	StickyPart = {} :: { [BasePart]: boolean },
+	FirePlayerPart = {} :: { [BasePart]: boolean },
+	PaintPlayerPart = {} :: { [BasePart]: boolean },
+	Poison = {} :: { [BasePart]: boolean },
+	Snowball = {} :: { [BasePart]: boolean },
+	Banana = {} :: { [BasePart]: boolean },
+	BlobmanDetector = {} :: { [BasePart]: boolean },
+	PCLD = {} :: { [BasePart]: boolean },
+	PlotBarrier = {} :: { [BasePart]: boolean },
+}
+
+local function AddConnection(conn: RBXScriptConnection): RBXScriptConnection
+	table.insert(Connections, conn)
+	return conn
+end
+
+local function GetCharacter(): Model?
+	return LocalPlayer.Character
+end
+
+local function GetRootPart(): BasePart?
+	local char = LocalPlayer.Character
+	return char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function GetHumanoid(): Humanoid?
+	local char = LocalPlayer.Character
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetPlayerNames(): { string }
+	local list = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			table.insert(list, plr.Name)
+		end
+	end
+	if #list == 0 then
+		table.insert(list, LocalPlayer.Name)
+	end
+	return list
+end
+
+local function IsSafeMovablePart(part: BasePart?): boolean
+	if not part or not part.Parent or part.Anchored then
+		return false
+	end
+	local mapModel = Workspace:FindFirstChild("Map")
+	if mapModel and part:IsDescendantOf(mapModel) then
+		return false
+	end
+	local plotsFolder = Workspace:FindFirstChild("Plots")
+	if plotsFolder and part:IsDescendantOf(plotsFolder) then
+		return false
+	end
+	return true
+end
+
+local AllToyNames = MenuToysData.GetAllToysSortedByName()
+
+-- ============================================================================
+-- OVERLAY GUI (SILENT AIM FOV + PERSISTENT HOVER TOOLTIP)
+-- ============================================================================
+local OverlayGui = Instance.new("ScreenGui")
+OverlayGui.Name = "FTAP_SilentAimOverlay"
+OverlayGui.ResetOnSpawn = false
+OverlayGui.IgnoreGuiInset = true
+OverlayGui.DisplayOrder = 9999
+OverlayGui.Parent = (gethui and gethui()) or cloneref(game:GetService("CoreGui"))
+
+local FOVCircleFrame = Instance.new("Frame")
+FOVCircleFrame.Name = "FOVCircle"
+FOVCircleFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVCircleFrame.BackgroundTransparency = 1
+FOVCircleFrame.Size = UDim2.fromOffset(300, 300)
+FOVCircleFrame.Position = UDim2.fromScale(0.5, 0.5)
+FOVCircleFrame.Visible = false
+FOVCircleFrame.Parent = OverlayGui
+
+local FOVCorner = Instance.new("UICorner")
+FOVCorner.CornerRadius = UDim.new(1, 0)
+FOVCorner.Parent = FOVCircleFrame
+
+local FOVStroke = Instance.new("UIStroke")
+FOVStroke.Thickness = 2
+FOVStroke.Color = Color3.fromRGB(220, 220, 220)
+FOVStroke.Transparency = 0.15
+FOVStroke.Parent = FOVCircleFrame
+
+local TargetInfoLabel = Instance.new("TextLabel")
+TargetInfoLabel.Name = "TargetInfo"
+TargetInfoLabel.AnchorPoint = Vector2.new(0.5, 0)
+TargetInfoLabel.BackgroundTransparency = 0.35
+TargetInfoLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+TargetInfoLabel.BorderSizePixel = 0
+TargetInfoLabel.Position = UDim2.new(0.5, 0, 1, 8)
+TargetInfoLabel.Size = UDim2.fromOffset(220, 24)
+TargetInfoLabel.Font = Enum.Font.GothamBold
+TargetInfoLabel.TextSize = 13
+TargetInfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TargetInfoLabel.Text = ""
+TargetInfoLabel.Visible = false
+TargetInfoLabel.Parent = FOVCircleFrame
+
+local LabelCorner = Instance.new("UICorner")
+LabelCorner.CornerRadius = UDim.new(0, 6)
+LabelCorner.Parent = TargetInfoLabel
+
+local TargetHighlight = Instance.new("Highlight")
+TargetHighlight.Name = "FTAP_TargetHighlight"
+TargetHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+TargetHighlight.FillTransparency = 0.45
+TargetHighlight.OutlineTransparency = 0
+TargetHighlight.Enabled = false
+TargetHighlight.Parent = OverlayGui
+
+-- Custom Persistent Hover Tooltip Box (Never stops working over time)
+local HoverTooltipFrame = Instance.new("Frame")
+HoverTooltipFrame.Name = "FTAP_HoverTooltip"
+HoverTooltipFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+HoverTooltipFrame.BackgroundTransparency = 0.04
+HoverTooltipFrame.BorderSizePixel = 0
+HoverTooltipFrame.Size = UDim2.fromOffset(270, 56)
+HoverTooltipFrame.Visible = false
+HoverTooltipFrame.ZIndex = 10000
+HoverTooltipFrame.Parent = OverlayGui
+
+local HoverCorner = Instance.new("UICorner")
+HoverCorner.CornerRadius = UDim.new(0, 6)
+HoverCorner.Parent = HoverTooltipFrame
+
+local HoverStroke = Instance.new("UIStroke")
+HoverStroke.Color = Color3.fromRGB(125, 85, 255)
+HoverStroke.Thickness = 1.2
+HoverStroke.Transparency = 0.2
+HoverStroke.Parent = HoverTooltipFrame
+
+local HoverTitleLabel = Instance.new("TextLabel")
+HoverTitleLabel.Name = "Title"
+HoverTitleLabel.BackgroundTransparency = 1
+HoverTitleLabel.Position = UDim2.fromOffset(10, 6)
+HoverTitleLabel.Size = UDim2.new(1, -20, 0, 16)
+HoverTitleLabel.Font = Enum.Font.GothamBold
+HoverTitleLabel.TextSize = 13
+HoverTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+HoverTitleLabel.TextColor3 = Color3.fromRGB(170, 140, 255)
+HoverTitleLabel.Text = ""
+HoverTitleLabel.ZIndex = 10001
+HoverTitleLabel.Parent = HoverTooltipFrame
+
+local HoverDescLabel = Instance.new("TextLabel")
+HoverDescLabel.Name = "Description"
+HoverDescLabel.BackgroundTransparency = 1
+HoverDescLabel.Position = UDim2.fromOffset(10, 24)
+HoverDescLabel.Size = UDim2.new(1, -20, 1, -30)
+HoverDescLabel.Font = Enum.Font.Gotham
+HoverDescLabel.TextSize = 12
+HoverDescLabel.TextWrapped = true
+HoverDescLabel.TextXAlignment = Enum.TextXAlignment.Left
+HoverDescLabel.TextYAlignment = Enum.TextYAlignment.Top
+HoverDescLabel.TextColor3 = Color3.fromRGB(230, 230, 235)
+HoverDescLabel.Text = ""
+HoverDescLabel.ZIndex = 10001
+HoverDescLabel.Parent = HoverTooltipFrame
+
+local COLOR_RED = Color3.fromRGB(255, 55, 55)
+local COLOR_GREEN = Color3.fromRGB(55, 255, 110)
+local COLOR_IDLE = Color3.fromRGB(200, 200, 220)
+
+local function GetSilentAimTarget(maxReach: number): BasePart?
+	local cam = Workspace.CurrentCamera
+	if not cam then
+		return nil
+	end
+
+	local mousePos = UserInputService:GetMouseLocation()
+	local fovRadius = (Options.SilentAimRadius and Options.SilentAimRadius.Value) or 150
+	local targetMode = (Options.SilentAimPriority and Options.SilentAimPriority.Value) or "玩家和玩具"
+	local camPos = cam.CFrame.Position
+
+	local bestPart: BasePart? = nil
+	local bestScreenDist = fovRadius
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local hrp = plr.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local head = plr.Character:FindFirstChild("Head") :: BasePart?
+			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+			local candidate = head or hrp
+			if candidate and hum and hum.Health > 0 then
+				local worldDist = (candidate.Position - camPos).Magnitude
+				if worldDist <= maxReach then
+					local screenPt, onScreen = cam:WorldToViewportPoint(candidate.Position)
+					if onScreen then
+						local screenDist = (Vector2.new(screenPt.X, screenPt.Y) - mousePos).Magnitude
+						if screenDist <= bestScreenDist then
+							bestScreenDist = screenDist
+							bestPart = candidate
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if bestPart or targetMode == "仅玩家" then
+		return bestPart
+	end
+
+	for _, folder in ipairs(Workspace:GetChildren()) do
+		if string.find(folder.Name, "SpawnedInToys") or folder.Name == "Cave" or folder.Name == "Food" or folder.Name == "Furniture" or folder.Name == "Pallets" then
+			for _, model in ipairs(folder:GetChildren()) do
+				if model:IsA("Model") then
+					local mainPart = model.PrimaryPart or model:FindFirstChild("SoundPart") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
+					if mainPart and mainPart:IsA("BasePart") and not mainPart.Anchored then
+						local worldDist = (mainPart.Position - camPos).Magnitude
+						if worldDist <= maxReach then
+							local screenPt, onScreen = cam:WorldToViewportPoint(mainPart.Position)
+							if onScreen then
+								local screenDist = (Vector2.new(screenPt.X, screenPt.Y) - mousePos).Magnitude
+								if screenDist <= bestScreenDist then
+									bestScreenDist = screenDist
+									bestPart = mainPart
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return bestPart
+end
+
+RaycastModule.RaycastFromCam = function(player, reach)
+	local effectiveReach = reach or 20
+	if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value then
+		effectiveReach = (Options.CustomReachSlider and Options.CustomReachSlider.Value) or 30
+	end
+
+	local normalHit, normalOffset = OriginalRaycastFn(player, effectiveReach)
+
+	if Toggles.SilentAimGrab and Toggles.SilentAimGrab.Value then
+		local silentTarget = GetSilentAimTarget(effectiveReach)
+		SilentAimCandidate = silentTarget
+		if silentTarget then
+			local fakeResult = {
+				Instance = silentTarget,
+				Position = silentTarget.Position,
+				Normal = Vector3.yAxis,
+				Material = silentTarget.Material,
+				Distance = (silentTarget.Position - Workspace.CurrentCamera.CFrame.Position).Magnitude,
+			}
+			return fakeResult, CFrame.new()
+		end
+	else
+		SilentAimCandidate = if normalHit then normalHit.Instance else nil
+	end
+
+	return normalHit, normalOffset
+end
+
+-- ============================================================================
+-- HAZARD CACHE & PROTECTION FUNCTIONS
+-- ============================================================================
+local function ApplySinglePartProtection(part: BasePart)
+	local name = part.Name
+	local parent = part.Parent
+
+	if name == "StickyPart" then
+		HazardCache.StickyPart[part] = true
+		if Toggles.AntiSticky and Toggles.AntiSticky.Value then
+			part.CanTouch = false
+			part.CanQuery = false
+		end
+	elseif name == "FirePlayerPart" then
+		HazardCache.FirePlayerPart[part] = true
+		if Toggles.AntiBurn and Toggles.AntiBurn.Value then
+			part.CanTouch = false
+			part.CanQuery = false
+		end
+	elseif name == "PaintPlayerPart" then
+		HazardCache.PaintPlayerPart[part] = true
+		if Toggles.AntiPaint and Toggles.AntiPaint.Value then
+			part.CanTouch = false
+			part.CanQuery = false
+		end
+	elseif name == "PlayerCharacterLocationDetector" then
+		HazardCache.PCLD[part] = true
+		if Toggles.BreakPCLD and Toggles.BreakPCLD.Value then
+			part.CanTouch = false
+			part.CanQuery = false
+			part.CanCollide = false
+		end
+	elseif name == "PlotBarrier" then
+		HazardCache.PlotBarrier[part] = true
+		if Toggles.AntiPlotBarrier and Toggles.AntiPlotBarrier.Value then
+			part.CanCollide = false
+			part.CanTouch = false
+		end
+	elseif name == "LeftDetector" or name == "RightDetector" then
+		if parent and parent.Name == "CreatureBlobman" then
+			HazardCache.BlobmanDetector[part] = true
+			if Toggles.AntiBlobman and Toggles.AntiBlobman.Value then
+				part.CanTouch = false
+				part.CanQuery = false
+			end
+		end
+	end
+
+	if parent then
+		local pName = parent.Name
+		if name == "Drip" or pName == "PoisonBigHole" or pName == "PoisonSmallHole" or pName == "PoisonContainer" or pName == "FoodMushroomPoison" then
+			HazardCache.Poison[part] = true
+			if Toggles.AntiPoison and Toggles.AntiPoison.Value then
+				part.CanTouch = false
+				part.CanQuery = false
+				part.CanCollide = false
+			end
+		elseif pName == "BallSnowball" then
+			HazardCache.Snowball[part] = true
+			if Toggles.AntiSnowball and Toggles.AntiSnowball.Value then
+				part.CanTouch = false
+				part.CanQuery = false
+				part.CanCollide = false
+			end
+		elseif pName == "FoodBanana" then
+			HazardCache.Banana[part] = true
+			if Toggles.AntiBanana and Toggles.AntiBanana.Value then
+				part.CanTouch = false
+				part.CanQuery = false
+				part.CanCollide = false
+			end
+		end
+	end
+end
+
+local function SetCategoryPartsState(category: string, disableTouch: boolean, disableCollide: boolean?)
+	local bucket = HazardCache[category]
+	if not bucket then
+		return
+	end
+	for part in pairs(bucket) do
+		if part and part.Parent then
+			part.CanTouch = not disableTouch
+			if disableCollide ~= nil then
+				part.CanCollide = not disableCollide
+			end
+		else
+			bucket[part] = nil
+		end
+	end
+end
+
+task.spawn(function()
+	local descendants = Workspace:GetDescendants()
+	for i, inst in ipairs(descendants) do
+		if inst:IsA("BasePart") then
+			ApplySinglePartProtection(inst)
+		end
+		if i % 600 == 0 then
+			task.wait()
+		end
+	end
+end)
+
+ExplosionMaker.Explode = function(bombTable, pos)
+	if Toggles.AntiExplosion and Toggles.AntiExplosion.Value then
+		local root = GetRootPart()
+		if root and typeof(pos) == "Vector3" and (root.Position - pos).Magnitude <= ((bombTable and bombTable.Radius or 15) + 18) then
+			return
+		end
+	end
+	return OriginalExplodeFn(bombTable, pos)
+end
+
+local function UpdateStopVelocityProtection(char: Model?)
+	if not char then
+		return
+	end
+	local stopVelScript = char:FindFirstChild("StopVelocity")
+	if stopVelScript and stopVelScript:IsA("LocalScript") then
+		local shouldDisable = (Toggles.AntiKick and Toggles.AntiKick.Value) or (Toggles.AntiGrab and Toggles.AntiGrab.Value)
+		stopVelScript.Disabled = if shouldDisable then true else false
+	end
+	local poisonScript = char:FindFirstChild("PoisonBallSpawner")
+	if poisonScript and poisonScript:IsA("LocalScript") and Toggles.AntiPoison and Toggles.AntiPoison.Value then
+		poisonScript.Disabled = true
+	end
+end
+
+-- Zeroes velocity on all limbs of LocalPlayer's character to block fast camera-flick flings
+local function ZeroCharacterVelocity(char: Model?)
+	if not char then
+		return
+	end
+	for _, part in ipairs(char:GetChildren()) do
+		if part:IsA("BasePart") then
+			part.AssemblyLinearVelocity = Vector3.zero
+			part.AssemblyAngularVelocity = Vector3.zero
+			part.Velocity = Vector3.zero
+			part.RotVelocity = Vector3.zero
+		end
+	end
+end
+
+-- Breaks enemy GrabParts welds targeting LocalPlayer immediately
+local function BreakEnemyGrabParts(grabPartsModel: Instance): boolean
+	local char = GetCharacter()
+	if not char or not grabPartsModel or grabPartsModel.Parent == Workspace then
+		return false
+	end
+	local gp = grabPartsModel:FindFirstChild("GrabPart")
+	local wc = gp and gp:FindFirstChild("WeldConstraint") :: WeldConstraint?
+	if wc and wc.Part1 and wc.Part1:IsDescendantOf(char) then
+		wc.Enabled = false
+		wc.Part1 = nil
+		pcall(function()
+			grabPartsModel:Destroy()
+		end)
+		return true
+	end
+	return false
+end
+
+-- Triggers instant anti-fling anchor + struggle burst when grabbed
+local function TriggerAntiGrabDefense()
+	local now = os.clock()
+	AntiGrabGraceUntil = now + 0.65
+	AntiGrabAnchorUntil = now + 0.22
+
+	local char = GetCharacter()
+	local root = GetRootPart()
+	local hum = GetHumanoid()
+	local cam = Workspace.CurrentCamera
+
+	ZeroCharacterVelocity(char)
+
+	if root then
+		if SafeAntiGrabCFrame then
+			root.CFrame = SafeAntiGrabCFrame
+		end
+		root.Anchored = true
+		WasAnchoredByAntiGrab = true
+	end
+
+	for _ = 1, 6 do
+		Struggle:FireServer()
+	end
+
+	if root and cam and Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value then
+		SetNetworkOwner:FireServer(root, cam.CFrame)
+	end
+
+	if hum then
+		hum.Sit = false
+		hum.AutoRotate = true
+		hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		local ragVal = hum:FindFirstChild("Ragdolled")
+		if ragVal and ragVal:IsA("BoolValue") then
+			ragVal.Value = false
+		end
+	end
+
+	local ragScript = char and char:FindFirstChild("RagdollPlayerCharacter")
+	local unragEvent = ragScript and ragScript:FindFirstChild("UnragdollThisCharacter")
+	if unragEvent and unragEvent:IsA("BindableEvent") then
+		unragEvent:Fire()
+	end
+end
+
+local function ApplyCustomReach(reachStuds: number)
+	local currentReachVal = LocalPlayer:FindFirstChild("CurrentReach")
+	local defaultReachVal = LocalPlayer:FindFirstChild("DefaultReach")
+	if currentReachVal and currentReachVal:IsA("NumberValue") then
+		currentReachVal.Value = reachStuds
+	end
+	if defaultReachVal and defaultReachVal:IsA("NumberValue") then
+		defaultReachVal.Value = reachStuds
+	end
+
+	local fartherReachVal = LocalPlayer:FindFirstChild("FartherReach")
+	if not fartherReachVal then
+		fartherReachVal = Instance.new("BoolValue")
+		fartherReachVal.Name = "FartherReach"
+		fartherReachVal.Parent = LocalPlayer
+	end
+	fartherReachVal.Value = (Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value) or false
+end
+
+local function SpawnWoodPlank()
+	local cam = Workspace.CurrentCamera
+	local root = GetRootPart()
+	local spawnCF = if cam then cam.CFrame else (if root then root.CFrame else CFrame.new())
+	local orientPart = Workspace:FindFirstChild("RotateOrientPart")
+	local orientVec = if orientPart and orientPart:IsA("BasePart") then orientPart.Orientation else Vector3.zero
+
+	local lincolnFolder = Workspace:FindFirstChild("Lincoln Planks")
+	if lincolnFolder then
+		for _, child in ipairs(lincolnFolder:GetChildren()) do
+			if child.Name == "PlankMaker" then
+				local enterBtn = child:FindFirstChild("Enter")
+				if enterBtn and enterBtn:IsA("BasePart") then
+					task.spawn(function()
+						pcall(function()
+							SetNetworkOwner:FireServer(enterBtn, enterBtn.CFrame)
+							CreateGrabLine:FireServer(enterBtn, CFrame.new())
+							task.wait(0.1)
+							DestroyGrabLine:FireServer(enterBtn)
+						end)
+					end)
+				end
+			end
+		end
+	end
+
+	task.spawn(function()
+		local ok, res = pcall(function()
+			return SpawnToyRF:InvokeServer("PalletLightBrown", spawnCF, orientVec)
+		end)
+		if ok and res == "YouDontOwnToy" then
+			pcall(function()
+				BuyToyRF:InvokeServer("PalletLightBrown")
+				SpawnToyRF:InvokeServer("PalletLightBrown", spawnCF, orientVec)
+			end)
+		end
+	end)
+end
+
+local function EnableGucciAntiGrab(mode: string)
+	local char = GetCharacter()
+	local hum = GetHumanoid()
+	local root = GetRootPart()
+	if not (char and hum and root) then
+		return
+	end
+
+	task.spawn(function()
+		local toyName = if mode == "TractorGreen" then "TractorGreen" else "CreatureBlobman"
+		local toysFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+		local vehicleModel = toysFolder and toysFolder:FindFirstChild(toyName)
+
+		if not vehicleModel then
+			local orientPart = Workspace:FindFirstChild("RotateOrientPart")
+			local orientVec = if orientPart and orientPart:IsA("BasePart") then orientPart.Orientation else Vector3.zero
+			pcall(function()
+				SpawnToyRF:InvokeServer(toyName, root.CFrame, orientVec)
+			end)
+			if toysFolder then
+				vehicleModel = toysFolder:WaitForChild(toyName, 3)
+			end
+		end
+
+		if vehicleModel then
+			GucciVehicle = vehicleModel
+			local vSeat = vehicleModel:FindFirstChildWhichIsA("VehicleSeat", true)
+			if vSeat then
+				for _, part in ipairs(vehicleModel:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+						part.CanTouch = false
+						part.CanQuery = false
+						part.Massless = true
+						part.Transparency = 1
+					end
+				end
+				vSeat:Sit(hum)
+				task.wait(0.12)
+				if RagdollRemote then
+					RagdollRemote:FireServer(root, 0)
+				end
+				task.wait(0.08)
+				local seatWeld = vSeat:FindFirstChild("SeatWeld")
+				if seatWeld then
+					seatWeld:Destroy()
+				end
+				hum.Sit = false
+			end
+		end
+	end)
+end
+
+local function RunAntiLagCleanup()
+	pcall(function()
+		local partHit = PlayerScripts:FindFirstChild("PartHitSound")
+		if partHit and partHit:FindFirstChild("DisableHitSounds") then
+			partHit.DisableHitSounds:Fire()
+		end
+		local charBeam = PlayerScripts:FindFirstChild("CharacterAndBeamMove")
+		if charBeam and charBeam:FindFirstChild("LowQualityMode") then
+			charBeam.LowQualityMode:Fire()
+		end
+		local char = GetCharacter()
+		if char and char:FindFirstChild("GrabbingScript") and char.GrabbingScript:FindFirstChild("LowQualityMode") then
+			char.GrabbingScript.LowQualityMode:Fire()
+		end
+	end)
+end
+
+-- ============================================================================
+-- 悬停提示兼容表（WindUI 使用 Desc 显示说明，这里保留表结构供主循环安全引用）
+-- ============================================================================
+local TooltipByText: { [string]: string } = {}
+local HoverTargets: { { Frame: GuiObject, Title: string, Tip: string } } = {}
+
+local function RegisterTooltip(title: string, tip: string)
+	TooltipByText[title] = tip
+end
+
+-- ============================================================================
+-- 主窗口与标签页
+-- ============================================================================
+local Window = Library:CreateWindow({
+	Title = "红星hx中心",
+	Author = "霸天",
+	Footer = "红星hx中心",
+	Folder = "hongxinghx",
+	Icon = "flame",
+})
+
+local Tabs = {
+	GrabMods = Window:AddTab("抓取与瞄准", "hand"),
+	Defense = Window:AddTab("防御", "shield"),
+	ToysWorld = Window:AddTab("玩具与木板", "box"),
+	TeleportAura = Window:AddTab("传送与光环", "navigation"),
+	Diagnostics = Window:AddTab("状态检测", "activity"),
+	UISettings = Window:AddTab("界面设置", "settings"),
+}
+
+-- ----------------------------------------------------------------------------
+-- 标签页 1：抓取与瞄准
+-- ----------------------------------------------------------------------------
+local SilentAimBox = Tabs.GrabMods:AddLeftGroupbox("静默瞄准与视野")
+local GrabModifiersBox = Tabs.GrabMods:AddRightGroupbox("抓取增强")
+local GrabPassBox = Tabs.GrabMods:AddLeftGroupbox("通行证与抓取光束")
+
+SilentAimBox:AddToggle("SilentAimGrab", {
+	Text = "静默瞄准抓取",
+	Desc = "自动把抓取射线吸附到视野圈内最近的玩家或玩具（红色=就绪，绿色=抓取中）",
+	Default = true,
+	Callback = function(val)
+		FOVCircleFrame.Visible = val and (not Toggles.ShowSilentAimCircle or Toggles.ShowSilentAimCircle.Value)
+		if not val then
+			TargetHighlight.Enabled = false
+			TargetInfoLabel.Visible = false
+		end
+	end,
+})
+
+SilentAimBox:AddToggle("ShowSilentAimCircle", {
+	Text = "显示静默瞄准圈",
+	Desc = "在准星周围显示视野范围圈",
+	Default = true,
+	Callback = function(val)
+		FOVCircleFrame.Visible = val and (Toggles.SilentAimGrab and Toggles.SilentAimGrab.Value)
+	end,
+})
+
+SilentAimBox:AddSlider("SilentAimRadius", {
+	Text = "静默瞄准半径",
+	Desc = "调整静默瞄准目标检测圈的像素半径",
+	Default = 150,
+	Min = 40,
+	Max = 450,
+	Rounding = 0,
+	Callback = function(val)
+		FOVCircleFrame.Size = UDim2.fromOffset(val * 2, val * 2)
+	end,
+})
+
+SilentAimBox:AddDropdown("SilentAimPriority", {
+	Text = "静默瞄准目标",
+	Desc = "选择静默瞄准锁定玩家与未固定玩具，还是只锁定玩家",
+	Values = { "玩家和玩具", "仅玩家" },
+	Default = 1,
+	Multi = false,
+})
+
+SilentAimBox:AddDivider()
+
+SilentAimBox:AddSlider("CameraFOV", {
+	Text = "摄像机视野",
+	Desc = "修改摄像机视野角度（游戏默认为 70）",
+	Default = 70,
+	Min = 30,
+	Max = 120,
+	Rounding = 0,
+	Callback = function(val)
+		local cam = Workspace.CurrentCamera
+		if cam then
+			cam.FieldOfView = val
+		end
+	end,
+})
+
+SilentAimBox:AddButton({
+	Text = "重置视野",
+	Desc = "把摄像机视野恢复为默认的 70",
+	Func = function()
+		if Options.CameraFOV then
+			Options.CameraFOV:SetValue(70)
+		end
+		local cam = Workspace.CurrentCamera
+		if cam then
+			cam.FieldOfView = 70
+		end
+	end,
+})
+
+GrabModifiersBox:AddToggle("SuperStrength", {
+	Text = "超级力量",
+	Desc = "松开或投掷抓取目标时，以极高速度把玩家或物品发射出去",
+	Default = false,
+})
+
+GrabModifiersBox:AddSlider("StrengthPower", {
+	Text = "力量强度",
+	Desc = "设置超级力量松开目标时施加的发射速度",
+	Default = 850,
+	Min = 100,
+	Max = 4000,
+	Rounding = 0,
+})
+
+GrabModifiersBox:AddToggle("SupersonicGrab", {
+	Text = "超音速抓取",
+	Desc = "把抓取部件的定位与朝向响应速度、力量拉满",
+	Default = false,
+})
+
+GrabModifiersBox:AddToggle("SpinGrab", {
+	Text = "旋转抓取",
+	Desc = "抓住目标时快速旋转（会忽略底板与已固定部件）",
+	Default = false,
+})
+
+GrabModifiersBox:AddSlider("SpinGrabSpeed", {
+	Text = "旋转速度",
+	Desc = "控制旋转抓取的转速",
+	Default = 15,
+	Min = 1,
+	Max = 50,
+	Rounding = 0,
+})
+
+GrabModifiersBox:AddToggle("SkyGrab", {
+	Text = "上天抓取",
+	Desc = "把抓取目标垂直拉高 350 格到天上",
+	Default = false,
+})
+
+GrabModifiersBox:AddToggle("NoclipGrab", {
+	Text = "穿墙抓取",
+	Desc = "关闭抓取目标的碰撞，可以拖着他穿墙穿地板",
+	Default = false,
+})
+
+GrabModifiersBox:AddToggle("ChaosGrab", {
+	Text = "混乱抓取",
+	Desc = "让抓取目标围绕拖拽点剧烈乱抖",
+	Default = false,
+})
+
+GrabModifiersBox:AddToggle("KillGrab", {
+	Text = "处决抓取",
+	Desc = "立即夺取网络所有权，把抓取目标丢到虚空销毁高度",
+	Default = false,
+})
+
+GrabPassBox:AddToggle("FreeFurtherReach", {
+	Text = "免费通行证（更远抓取）",
+	Desc = "无需购买「更远抓取」通行证即可解锁更远抓取距离与滚轮拉伸距离",
+	Default = false,
+	Callback = function(val)
+		if val then
+			local reach = (Options.CustomReachSlider and Options.CustomReachSlider.Value) or 30
+			ApplyCustomReach(reach)
+		else
+			ApplyCustomReach(20)
+		end
+	end,
+})
+
+GrabPassBox:AddSlider("CustomReachSlider", {
+	Text = "自定义抓取距离",
+	Desc = "设置可以抓到并拉出的最大格数",
+	Default = 30,
+	Min = 20,
+	Max = 120,
+	Rounding = 0,
+	Callback = function(val)
+		if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value then
+			ApplyCustomReach(val)
+		end
+	end,
+})
+
+GrabPassBox:AddToggle("RainbowLine", {
+	Text = "彩虹抓取光束",
+	Desc = "在服务器端让抓取光束与抓取球的颜色循环流动",
+	Default = false,
+})
+
+-- ----------------------------------------------------------------------------
+-- 标签页 2：防御
+-- ----------------------------------------------------------------------------
+local AntiGrabBox = Tabs.Defense:AddLeftGroupbox("防抓与所有权")
+local AntiHazardBox = Tabs.Defense:AddRightGroupbox("防踢与危险物")
+local AntiPerfBox = Tabs.Defense:AddLeftGroupbox("防卡顿与可见性")
+
+AntiGrabBox:AddToggle("AntiGrab", {
+	Text = "防抓取",
+	Desc = "被抓时自动锚定、拆掉敌方抓取焊接、狂刷挣扎，并清除抓取后的投掷速度",
+	Default = false,
+	Callback = function(val)
+		UpdateStopVelocityProtection(GetCharacter())
+		if not val and WasAnchoredByAntiGrab then
+			local root = GetRootPart()
+			if root then
+				root.Anchored = false
+			end
+			WasAnchoredByAntiGrab = false
+		end
+	end,
+})
+
+AntiGrabBox:AddToggle("GucciAntiGrab", {
+	Text = "[GUCCHI] 防抓取",
+	Desc = "生成隐形载具（Blobman 或拖拉机）并断开座位焊接，让别人抓不到你",
+	Default = false,
+	Callback = function(val)
+		if val then
+			local mode = (Options.GucciMode and Options.GucciMode.Value) or "CreatureBlobman"
+			EnableGucciAntiGrab(mode)
+		else
+			if GucciVehicle then
+				pcall(function()
+					DestroyToyRE:FireServer(GucciVehicle)
+				end)
+				GucciVehicle = nil
+			end
+		end
+	end,
+})
+
+AntiGrabBox:AddDropdown("GucciMode", {
+	Text = "载具模式",
+	Desc = "选择 [GUCCHI] 防抓取使用的玩具载具（名称必须与游戏内资源一致）",
+	Values = { "CreatureBlobman", "TractorGreen" },
+	Default = 1,
+	Multi = false,
+})
+
+AntiGrabBox:AddToggle("AntiNetworkOwnership", {
+	Text = "防网络所有权抢占",
+	Desc = "别人试图抓住你时，持续收回 HumanoidRootPart 的网络所有权",
+	Default = false,
+})
+
+AntiGrabBox:AddToggle("AntiBlobman", {
+	Text = "防 Blobman",
+	Desc = "关闭所有 CreatureBlobman 左右检测抓取判定盒的触碰检测",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("BlobmanDetector", val)
+	end,
+})
+
+AntiGrabBox:AddToggle("AutoReset", {
+	Text = "自动重置",
+	Desc = "有人抓住你的瞬间立刻重生角色",
+	Default = false,
+})
+
+AntiHazardBox:AddToggle("AntiKick", {
+	Text = "防踢",
+	Desc = "关闭本地 StopVelocity 脚本，并拆掉敌方的抓取焊接",
+	Default = false,
+	Callback = function()
+		UpdateStopVelocityProtection(GetCharacter())
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiPlotBarrier", {
+	Text = "穿过地块屏障",
+	Desc = "即使没有被加入该地块，也能直接走进地块屏障",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("PlotBarrier", val, val)
+	end,
+})
+
+AntiHazardBox:AddToggle("BreakPCLD", {
+	Text = "[破防] 防踢",
+	Desc = "关闭全部 29 个 PlayerCharacterLocationDetector 反作弊检测区的触碰与查询",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("PCLD", val, val)
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiExplosion", {
+	Text = "防爆炸",
+	Desc = "阻止附近的炸弹、气球和导弹对你产生爆炸冲击力",
+	Default = false,
+})
+
+AntiHazardBox:AddToggle("AntiBurn", {
+	Text = "防烧伤",
+	Desc = "关闭篝火、烤箱和着火玩家身上的火焰判定盒",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("FirePlayerPart", val)
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiVoid", {
+	Text = "防虚空坠落",
+	Desc = "掉到 Y = -120 以下时，传送回最后一次安全的地面位置",
+	Default = false,
+})
+
+AntiHazardBox:AddToggle("AntiSticky", {
+	Text = "防粘附陷阱",
+	Desc = "关闭粘附道具的触碰检测，菜刀、镐、苦无和手里剑粘不上你",
+	Default = false,
+	Callback = function(val)
+		local stickyScript = PlayerScripts:FindFirstChild("StickyPartsTouchDetection")
+		if stickyScript and stickyScript:IsA("LocalScript") then
+			stickyScript.Disabled = val
+		end
+		SetCategoryPartsState("StickyPart", val)
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiSnowball", {
+	Text = "防雪球",
+	Desc = "关闭雪球的碰撞与触碰事件，不会被砸成布娃娃",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("Snowball", val, val)
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiBanana", {
+	Text = "防香蕉皮",
+	Desc = "不会因为香蕉皮摔倒或变成布娃娃",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("Banana", val, val)
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiPaint", {
+	Text = "防油漆",
+	Desc = "关闭油漆桶、辣酱、UFO 和特斯拉线圈的喷漆判定盒",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("PaintPlayerPart", val)
+	end,
+})
+
+AntiHazardBox:AddToggle("AntiPoison", {
+	Text = "防中毒",
+	Desc = "免疫毒坑、工厂毒液罐、滴落毒液和毒蘑菇",
+	Default = false,
+	Callback = function(val)
+		SetCategoryPartsState("Poison", val, val)
+		UpdateStopVelocityProtection(GetCharacter())
+	end,
+})
+
+AntiPerfBox:AddToggle("AntiLag", {
+	Text = "防卡顿",
+	Desc = "触发游戏原生的低画质模式与关闭打击音效事件，提升帧率",
+	Default = false,
+	Callback = function(val)
+		if val then
+			RunAntiLagCleanup()
+		end
+	end,
+})
+
+AntiPerfBox:AddToggle("AutoAntiLag", {
+	Text = "自动防卡顿",
+	Desc = "帧率低于阈值时自动执行防卡顿清理",
+	Default = false,
+})
+
+AntiPerfBox:AddSlider("AutoAntiLagFPS", {
+	Text = "自动防卡顿帧率阈值",
+	Desc = "帧率低于该数值时触发自动防卡顿",
+	Default = 35,
+	Min = 15,
+	Max = 60,
+	Rounding = 0,
+})
+
+AntiPerfBox:AddToggle("AntiInvis", {
+	Text = "反隐身",
+	Desc = "把隐身玩家的透明度强制恢复为可见",
+	Default = false,
+})
+
+-- ----------------------------------------------------------------------------
+-- 标签页 3：玩具与木板
+-- ----------------------------------------------------------------------------
+local PlankBox = Tabs.ToysWorld:AddLeftGroupbox("木板与玩具生成")
+local WorldActionsBox = Tabs.ToysWorld:AddRightGroupbox("炸弹、金币与老虎机")
+
+PlankBox:AddButton({
+	Text = "生成木板",
+	Desc = "激活 Lincoln 造板器按钮，并在摄像机位置生成一块浅棕色木板",
+	Func = function()
+		SpawnWoodPlank()
+	end,
+})
+
+PlankBox:AddDropdown("SelectedToyDropdown", {
+	Text = "选择玩具",
+	Desc = "从游戏 MenuToysData 目录里选择任意玩具（名称为游戏内资源名）",
+	Values = AllToyNames,
+	Default = "PalletLightBrown",
+	Multi = false,
+	Searchable = true,
+})
+
+PlankBox:AddButton({
+	Text = "生成选中玩具",
+	Desc = "在摄像机正前方生成当前选中的玩具",
+	Func = function()
+		local toyName = (Options.SelectedToyDropdown and Options.SelectedToyDropdown.Value) or "PalletLightBrown"
+		local cam = Workspace.CurrentCamera
+		local orientPart = Workspace:FindFirstChild("RotateOrientPart")
+		local orientVec = if orientPart and orientPart:IsA("BasePart") then orientPart.Orientation else Vector3.zero
+		task.spawn(function()
+			pcall(function()
+				SpawnToyRF:InvokeServer(toyName, cam.CFrame, orientVec)
+			end)
+		end)
+	end,
+})
+
+PlankBox:AddButton({
+	Text = "购买选中玩具",
+	Desc = "用游戏内金币购买当前选中的玩具",
+	Func = function()
+		local toyName = (Options.SelectedToyDropdown and Options.SelectedToyDropdown.Value) or "PalletLightBrown"
+		task.spawn(function()
+			pcall(function()
+				BuyToyRF:InvokeServer(toyName)
+			end)
+		end)
+	end,
+})
+
+PlankBox:AddButton({
+	Text = "领取全部免费玩具",
+	Desc = "自动领取全部 0 金币玩具（音箱、灭火器、蛋黄酱、陶笛、小礼物、喷漆罐）",
+	Func = function()
+		task.spawn(function()
+			local freeToys = {
+				"Boombox",
+				"FireExtinguisher",
+				"FoodMayonnaise",
+				"InstrumentWoodwindOcarina",
+				"PresentSmall",
+				"SprayCanWD",
+			}
+			for _, name in ipairs(freeToys) do
+				pcall(function()
+					BuyToyRF:InvokeServer(name)
+				end)
+			end
+		end)
+	end,
+})
+
+PlankBox:AddButton({
+	Text = "销毁我的全部玩具",
+	Desc = "销毁你生成玩具文件夹里的所有玩具，腾出玩具点数",
+	Func = function()
+		local folder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+		if not folder then
+			return
+		end
+		for _, child in ipairs(folder:GetChildren()) do
+			if child:IsA("Model") then
+				pcall(function()
+					DestroyToyRE:FireServer(child)
+				end)
+			end
+		end
+	end,
+})
+
+WorldActionsBox:AddButton({
+	Text = "引爆全部炸弹",
+	Desc = "远程引爆 ExplosionMaker 中记录的所有炸弹、气球和礼物",
+	Func = function()
+		local bombs = ExplosionMaker.CurrentBombsTables
+		if type(bombs) ~= "table" then
+			return
+		end
+		for _, entry in ipairs(bombs) do
+			if entry and entry.Hitbox then
+				local pos = (entry.PositionPart and entry.PositionPart.Position) or entry.Hitbox.Position
+				pcall(function()
+					BombExplode:FireServer(entry, pos)
+				end)
+			end
+		end
+	end,
+})
+
+WorldActionsBox:AddToggle("AutoCollectCoins", {
+	Text = "自动收集金币",
+	Desc = "用 firetouchinterest 自动拾取地图上的 5/10/25 金币",
+	Default = false,
+})
+
+WorldActionsBox:AddToggle("AutoSpinSlots", {
+	Text = "自动转动老虎机",
+	Desc = "老虎机指示灯变霓虹时自动拉杆",
+	Default = false,
+})
+
+-- ----------------------------------------------------------------------------
+-- 标签页 4：传送与光环
+-- ----------------------------------------------------------------------------
+local TeleportBox = Tabs.TeleportAura:AddLeftGroupbox("传送")
+local AuraBox = Tabs.TeleportAura:AddRightGroupbox("抓取光环")
+
+TeleportBox:AddSlider("VerticalTPDistance", {
+	Text = "上下传送距离",
+	Desc = "设置向上/向下传送按钮使用的格数",
+	Default = 40,
+	Min = 5,
+	Max = 300,
+	Rounding = 0,
+})
+
+TeleportBox:AddButton({
+	Text = "向上传送",
+	Desc = "按设定距离把你自己（以及手上抓取的目标）垂直向上传送",
+	Func = function()
+		local dist = (Options.VerticalTPDistance and Options.VerticalTPDistance.Value) or 40
+		if IsSafeMovablePart(ActiveGrabTarget) then
+			ActiveGrabTarget.CFrame += Vector3.new(0, dist, 0)
+		end
+		local root = GetRootPart()
+		if root then
+			root.CFrame += Vector3.new(0, dist, 0)
+		end
+	end,
+})
+
+TeleportBox:AddButton({
+	Text = "向下传送",
+	Desc = "按设定距离把你自己（以及手上抓取的目标）垂直向下传送",
+	Func = function()
+		local dist = (Options.VerticalTPDistance and Options.VerticalTPDistance.Value) or 40
+		if IsSafeMovablePart(ActiveGrabTarget) then
+			ActiveGrabTarget.CFrame -= Vector3.new(0, dist, 0)
+		end
+		local root = GetRootPart()
+		if root then
+			root.CFrame -= Vector3.new(0, dist, 0)
+		end
+	end,
+})
+
+TeleportBox:AddDropdown("TargetPlayerDropdown", {
+	Text = "目标玩家",
+	Desc = "选择要传送过去或环绕的玩家",
+	Values = GetPlayerNames(),
+	Default = 1,
+	Multi = false,
+	Searchable = true,
+})
+
+TeleportBox:AddButton({
+	Text = "刷新玩家列表",
+	Desc = "把当前服务器里的玩家同步到目标玩家下拉框",
+	Func = function()
+		if Options.TargetPlayerDropdown then
+			Options.TargetPlayerDropdown:SetValues(GetPlayerNames())
+		end
+	end,
+})
+
+TeleportBox:AddButton({
+	Text = "传送到玩家",
+	Desc = "立刻传送到选中玩家的身后",
+	Func = function()
+		local targetName = Options.TargetPlayerDropdown and Options.TargetPlayerDropdown.Value
+		local targetPlr = targetName and Players:FindFirstChild(targetName)
+		local targetRoot = targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
+		local myRoot = GetRootPart()
+		if targetRoot and myRoot then
+			myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
+		end
+	end,
+})
+
+TeleportBox:AddToggle("LoopTP", {
+	Text = "循环传送",
+	Desc = "每帧持续把你传送到选中的玩家或传送点",
+	Default = false,
+})
+
+TeleportBox:AddDropdown("LoopTPMode", {
+	Text = "循环传送模式",
+	Desc = "选择循环传送时角色与目标的相对位置",
+	Values = { "传送至玩家身后", "传送至玩家头顶", "环绕玩家", "指定传送点" },
+	Default = 1,
+	Multi = false,
+})
+
+TeleportBox:AddDropdown("WaypointDropdown", {
+	Text = "传送点",
+	Desc = "选择地图地标或房屋地块（名称为游戏内对象名，勿修改）",
+	Values = {
+		"Spawn",
+		"Factory",
+		"Barn",
+		"BlueHouse",
+		"JapaneseHouse",
+		"Train",
+		"GlassHouse",
+		"SpookyHouse",
+		"PinkRoofHouse",
+		"TudorHouse",
+		"Plot1",
+		"Plot2",
+		"Plot3",
+		"Plot4",
+		"Plot5",
+	},
+	Default = 1,
+	Multi = false,
+})
+
+TeleportBox:AddButton({
+	Text = "传送到传送点",
+	Desc = "把角色传送到选中的地图传送点或地块",
+	Func = function()
+		local wpName = (Options.WaypointDropdown and Options.WaypointDropdown.Value) or "Spawn"
+		local root = GetRootPart()
+		if not root then
+			return
+		end
+		if wpName == "Spawn" then
+			local sp = Workspace:FindFirstChild("SpawnLocation")
+			if sp and sp:IsA("BasePart") then
+				root.CFrame = sp.CFrame + Vector3.new(0, 4, 0)
+			end
+		elseif string.sub(wpName, 1, 4) == "Plot" then
+			local plots = Workspace:FindFirstChild("Plots")
+			local plot = plots and plots:FindFirstChild(wpName)
+			local area = plot and plot:FindFirstChild("PlotArea")
+			if area and area:IsA("BasePart") then
+				root.CFrame = area.CFrame + Vector3.new(0, 5, 0)
+			end
+		else
+			local wps = Workspace:FindFirstChild("Waypoints")
+			local wp = wps and wps:FindFirstChild(wpName)
+			if wp and wp:IsA("BasePart") then
+				root.CFrame = wp.CFrame + Vector3.new(0, 4, 0)
+			end
+		end
+	end,
+})
+
+AuraBox:AddToggle("GrabAura", {
+	Text = "抓取光环",
+	Desc = "自动夺取网络所有权，并弹飞光环半径内的玩家",
+	Default = false,
+})
+
+AuraBox:AddDropdown("GrabAuraMode", {
+	Text = "光环模式",
+	Desc = "选择进入光环范围的玩家会被怎么处理",
+	Values = { "甩飞", "送入虚空", "抛向天空" },
+	Default = 1,
+	Multi = false,
+})
+
+AuraBox:AddSlider("GrabAuraRadius", {
+	Text = "光环半径",
+	Desc = "设置抓取光环在你角色周围的作用范围（格）",
+	Default = 25,
+	Min = 8,
+	Max = 50,
+	Rounding = 0,
+})
+
+-- ----------------------------------------------------------------------------
+-- 标签页 5：状态检测
+-- ----------------------------------------------------------------------------
+local DiagPlayerBox = Tabs.Diagnostics:AddLeftGroupbox("玩家状态")
+local DiagWorldBox = Tabs.Diagnostics:AddRightGroupbox("世界状态")
+
+local DiagLabels = {
+	HeldState = DiagPlayerBox:AddLabel("被抓住: 否 | 计时: 12"),
+	ReachState = DiagPlayerBox:AddLabel("当前抓取距离: 30 | 默认距离: 30"),
+	ToyPoints = DiagPlayerBox:AddLabel("玩具点数: 0 / 100 | 可生成: 是"),
+	PlotState = DiagPlayerBox:AddLabel("在地块内: 否 | 在自有地块: 否"),
+	FPSState = DiagPlayerBox:AddLabel("帧率: 60 | 延迟: 0 毫秒"),
+	GrabTarget = DiagWorldBox:AddLabel("抓取目标: 无"),
+	GrabOwner = DiagWorldBox:AddLabel("头部持有者: 无"),
+	WorldCounts = DiagWorldBox:AddLabel("PCLD 检测区: 0 | 活动炸弹: 0"),
+}
+
+DiagWorldBox:AddToggle("PCLDESP", {
+	Text = "高亮 PCLD 检测区",
+	Desc = "用红色高亮全部 29 个 PlayerCharacterLocationDetector 反作弊检测区",
+	Default = false,
+	Callback = function(val)
+		if not val then
+			for inst, hl in pairs(PCLDHighlights) do
+				if hl then
+					hl:Destroy()
+				end
+				if inst and inst:IsA("BasePart") then
+					inst.Transparency = 1
+				end
+			end
+			table.clear(PCLDHighlights)
+		end
+	end,
+})
+
+DiagWorldBox:AddButton({
+	Text = "复制诊断信息",
+	Desc = "把当前所有实时诊断数据复制到剪贴板",
+	Func = function()
+		if not setclipboard then
+			return
+		end
+		local report = table.concat({
+			DiagLabels.HeldState.Text,
+			DiagLabels.ReachState.Text,
+			DiagLabels.ToyPoints.Text,
+			DiagLabels.PlotState.Text,
+			DiagLabels.FPSState.Text,
+			DiagLabels.GrabTarget.Text,
+			DiagLabels.GrabOwner.Text,
+			DiagLabels.WorldCounts.Text,
+		}, "\n")
+		setclipboard(report)
+	end,
+})
+
+-- ----------------------------------------------------------------------------
+-- 标签页 6：界面设置
+-- ----------------------------------------------------------------------------
+local MenuGroup = Tabs.UISettings:AddLeftGroupbox("菜单")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+	Text = "显示快捷键面板",
+	Desc = "显示或隐藏当前生效的快捷键列表",
+	Default = Library.KeybindFrame.Visible,
+	Callback = function(value)
+		Library.KeybindFrame.Visible = value
+	end,
+})
+
+MenuGroup:AddButton({
+	Text = "卸载脚本",
+	Desc = "干净地卸载脚本，恢复被修改的函数并移除全部界面",
+	Func = function()
+		if Env.FTAP_Obsidian_Cleanup then
+			Env.FTAP_Obsidian_Cleanup()
+		end
+	end,
+})
+
+MenuGroup:AddKeybind("MenuKeybind", {
+	Text = "菜单按键",
+	Default = "RightControl",
+})
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+MenuGroup:AddDivider()
+
+MenuGroup:AddLabel("作者: 霸天")
+
+task.spawn(function()
+	task.wait(0.6)
+	pcall(function()
+		WindUI:Notify({
+			Title = "红星hx中心",
+			Content = "加载完成，按 右Ctrl 打开或关闭菜单",
+			Duration = 6,
+		})
+	end)
+end)
+
+local function IsGuiObjectActuallyVisible(obj: GuiObject): boolean
+	local cur: Instance? = obj
+	while cur do
+		if cur:IsA("GuiObject") then
+			if not cur.Visible then
+				return false
+			end
+		elseif cur:IsA("ScreenGui") then
+			return cur.Enabled
+		end
+		cur = cur.Parent
+	end
+	return false
+end
+
+-- ============================================================================
+-- RUNTIME LISTENERS & LOOPS
+-- ============================================================================
+
+AddConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
+	WasAnchoredByAntiGrab = false
+	AntiGrabGraceUntil = 0
+	AntiGrabAnchorUntil = 0
+	task.wait(0.5)
+	UpdateStopVelocityProtection(newChar)
+	if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value then
+		local reach = (Options.CustomReachSlider and Options.CustomReachSlider.Value) or 30
+		ApplyCustomReach(reach)
+	end
+end))
+UpdateStopVelocityProtection(GetCharacter())
+
+-- Instant Intercept when anyone fires CreateGrabLine on any part of LocalPlayer's character
+AddConnection(CreateGrabLine.OnClientEvent:Connect(function(grabber, grabbedPart)
+	if grabber ~= LocalPlayer and grabbedPart and typeof(grabbedPart) == "Instance" then
+		local char = GetCharacter()
+		if char and grabbedPart:IsDescendantOf(char) then
+			if Toggles.AutoReset and Toggles.AutoReset.Value then
+				local hum = GetHumanoid()
+				if hum then
+					hum.Health = 0
+				end
+				return
+			end
+			if (Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value) then
+				TriggerAntiGrabDefense()
+				task.defer(function()
+					if grabber.Character then
+						local theirGrab = grabber.Character:FindFirstChild("GrabParts")
+						if theirGrab then
+							BreakEnemyGrabParts(theirGrab)
+						end
+					end
+				end)
+			end
+		end
+	end
+end))
+
+AddConnection(Workspace.DescendantAdded:Connect(function(inst)
+	if inst:IsA("BasePart") then
+		ApplySinglePartProtection(inst)
+	elseif inst.Name == "PartOwner" then
+		local char = GetCharacter()
+		if char and inst:IsDescendantOf(char) then
+			if (Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value) then
+				TriggerAntiGrabDefense()
+				task.defer(function()
+					if inst and inst.Parent then
+						inst:Destroy()
+					end
+				end)
+			end
+		end
+	elseif inst.Name == "GrabParts" and inst.Parent ~= Workspace then
+		if (Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiKick and Toggles.AntiKick.Value) then
+			task.defer(function()
+				if BreakEnemyGrabParts(inst) then
+					TriggerAntiGrabDefense()
+				end
+			end)
+		end
+	elseif inst.Name == "MushroomPoisonEffects" and Toggles.AntiPoison and Toggles.AntiPoison.Value then
+		task.defer(function()
+			inst:Destroy()
+		end)
+	end
+end))
+
+-- Smooth Scroll Support for Free Further Reach (Pure Luau, Crash-Free)
+AddConnection(UserInputService.InputChanged:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseWheel then
+		if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value and Workspace:FindFirstChild("GrabParts") then
+			local maxReach = (Options.CustomReachSlider and Options.CustomReachSlider.Value) or 30
+			CustomGrabDistance = math.clamp(CustomGrabDistance + (input.Position.Z * 3), 3, maxReach)
+			pcall(function()
+				ExtendGrabLine:FireServer(CustomGrabDistance)
+			end)
+		end
+	end
+end))
+
+-- Detect LocalPlayer's Workspace.GrabParts creation & removal
+AddConnection(Workspace.ChildAdded:Connect(function(child)
+	if child.Name == "GrabParts" and child:IsA("Model") then
+		task.spawn(function()
+			local grabPart = child:WaitForChild("GrabPart", 2)
+			local dragPart = child:WaitForChild("DragPart", 2) :: BasePart?
+			local weld = grabPart and grabPart:WaitForChild("WeldConstraint", 2)
+			if not (grabPart and dragPart and weld) then
+				return
+			end
+
+			local target = weld.Part1
+			ActiveGrabTarget = target
+
+			if target and target.Anchored then
+				target.AssemblyLinearVelocity = Vector3.zero
+				target.AssemblyAngularVelocity = Vector3.zero
+			end
+
+			local cam = Workspace.CurrentCamera
+			if cam and target and IsSafeMovablePart(target) then
+				local maxReach = if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value
+					then ((Options.CustomReachSlider and Options.CustomReachSlider.Value) or 30)
+					else 20
+				CustomGrabDistance = math.clamp((target.Position - cam.CFrame.Position).Magnitude, 3, maxReach)
+				if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value then
+					pcall(function()
+						ExtendGrabLine:FireServer(CustomGrabDistance)
+					end)
+				end
+			end
+
+			if IsSafeMovablePart(target) and ((Toggles.SupersonicGrab and Toggles.SupersonicGrab.Value) or (Toggles.SuperStrength and Toggles.SuperStrength.Value)) then
+				local alignPos = dragPart:FindFirstChildOfClass("AlignPosition")
+				local alignOri = dragPart:FindFirstChildOfClass("AlignOrientation")
+				if alignPos then
+					alignPos.Responsiveness = 200
+					alignPos.MaxForce = 5e7
+					alignPos.MaxVelocity = 1800
+				end
+				if alignOri then
+					alignOri.Responsiveness = 200
+					alignOri.MaxTorque = 5e7
+					alignOri.MaxAngularVelocity = 400
+				end
+			end
+
+			if Toggles.KillGrab and Toggles.KillGrab.Value and IsSafeMovablePart(target) then
+				local model = target:FindFirstAncestorOfClass("Model")
+				local hum = model and model:FindFirstChildOfClass("Humanoid")
+				local hrp = model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hum and hrp and model ~= GetCharacter() then
+					pcall(function()
+						SetNetworkOwner:FireServer(hrp, Workspace.CurrentCamera.CFrame)
+						hum:ChangeState(Enum.HumanoidStateType.Dead)
+						hum.Health = 0
+						hrp.CFrame = CFrame.new(0, Workspace.FallenPartsDestroyHeight - 25, 0)
+						hrp.AssemblyLinearVelocity = Vector3.new(0, -5000, 0)
+					end)
+				end
+			end
+		end)
+	end
+end))
+
+AddConnection(Workspace.ChildRemoved:Connect(function(child)
+	if child.Name == "GrabParts" and ActiveGrabTarget then
+		local target = ActiveGrabTarget
+		ActiveGrabTarget = nil
+
+		if target and target.Anchored then
+			target.AssemblyLinearVelocity = Vector3.zero
+			target.AssemblyAngularVelocity = Vector3.zero
+			return
+		end
+
+		if Toggles.SuperStrength and Toggles.SuperStrength.Value and IsSafeMovablePart(target) then
+			local power = (Options.StrengthPower and Options.StrengthPower.Value) or 850
+			local cam = Workspace.CurrentCamera
+			if cam then
+				local launchVel = cam.CFrame.LookVector * power
+				local model = target:FindFirstAncestorOfClass("Model")
+				if model and model ~= Workspace then
+					for _, p in ipairs(model:GetDescendants()) do
+						if p:IsA("BasePart") and not p.Anchored then
+							p.AssemblyLinearVelocity = launchVel
+						end
+					end
+				else
+					target.AssemblyLinearVelocity = launchVel
+				end
+			end
+		end
+	end
+end))
+
+local IsHeldValue = LocalPlayer:WaitForChild("IsHeld", 5) :: BoolValue?
+if IsHeldValue then
+	AddConnection(IsHeldValue.Changed:Connect(function()
+		if IsHeldValue.Value == true then
+			if Toggles.AutoReset and Toggles.AutoReset.Value then
+				local hum = GetHumanoid()
+				if hum then
+					hum.Health = 0
+				end
+				return
+			end
+			if (Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value) then
+				TriggerAntiGrabDefense()
+			end
+		else
+			-- Extend protection window when grab is released so fast camera-flick throws are absorbed
+			if (Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value) then
+				local now = os.clock()
+				AntiGrabGraceUntil = math.max(AntiGrabGraceUntil, now + 0.65)
+				AntiGrabAnchorUntil = math.max(AntiGrabAnchorUntil, now + 0.18)
+				ZeroCharacterVelocity(GetCharacter())
+			end
+		end
+	end))
+end
+
+-- Pre-Physics & Post-Physics Anti-Fling Shield (Stops fast grab camera-flicks before & after physics)
+local function EnforceAntiGrabPhysicsShield()
+	if not ((Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value)) then
+		return
+	end
+
+	local char = GetCharacter()
+	local root = GetRootPart()
+	if not (char and root) then
+		return
+	end
+
+	local now = os.clock()
+	local isHeld = IsHeldValue and IsHeldValue.Value
+	local head = char:FindFirstChild("Head")
+	local partOwner = head and head:FindFirstChild("PartOwner")
+
+	if isHeld or partOwner then
+		AntiGrabGraceUntil = now + 0.65
+		AntiGrabAnchorUntil = now + 0.22
+	end
+
+	if now < AntiGrabGraceUntil then
+		ZeroCharacterVelocity(char)
+		if SafeAntiGrabCFrame and (root.Position - SafeAntiGrabCFrame.Position).Magnitude > 5 then
+			root.CFrame = SafeAntiGrabCFrame
+		end
+	end
+
+	if isHeld or partOwner or now < AntiGrabAnchorUntil then
+		root.Anchored = true
+		WasAnchoredByAntiGrab = true
+		if SafeAntiGrabCFrame then
+			root.CFrame = SafeAntiGrabCFrame
+		end
+	elseif WasAnchoredByAntiGrab then
+		root.Anchored = false
+		WasAnchoredByAntiGrab = false
+		ZeroCharacterVelocity(char)
+	end
+end
+
+AddConnection(RunService.Stepped:Connect(EnforceAntiGrabPhysicsShield))
+AddConnection(RunService.Heartbeat:Connect(EnforceAntiGrabPhysicsShield))
+
+-- Main RenderStepped Loop
+local OrbitAngle = 0
+AddConnection(RunService.RenderStepped:Connect(function(dt)
+	FPSCounter = math.floor(1 / math.max(dt, 0.001))
+
+	local cam = Workspace.CurrentCamera
+	if cam and Options.CameraFOV and Options.CameraFOV.Value ~= 70 then
+		cam.FieldOfView = Options.CameraFOV.Value
+	end
+
+	local mousePos = UserInputService:GetMouseLocation()
+
+	-- Persistent Hover Tooltip Check
+	local foundHover: { Frame: GuiObject, Title: string, Tip: string }? = nil
+	if not Library.Unloaded and #HoverTargets > 0 then
+		local guiInset = GuiService:GetGuiInset()
+		for _, entry in ipairs(HoverTargets) do
+			local frame = entry.Frame
+			if frame and frame.Parent and IsGuiObjectActuallyVisible(frame) then
+				local screenGui = frame:FindFirstAncestorOfClass("ScreenGui")
+				local checkPos = if screenGui and not screenGui.IgnoreGuiInset then (mousePos - guiInset) else mousePos
+				local absPos = frame.AbsolutePosition
+				local absSize = frame.AbsoluteSize
+				if checkPos.X >= absPos.X and checkPos.X <= (absPos.X + absSize.X) and checkPos.Y >= absPos.Y and checkPos.Y <= (absPos.Y + absSize.Y) then
+					local scrollParent = frame:FindFirstAncestorWhichIsA("ScrollingFrame")
+					if scrollParent then
+						local sPos = scrollParent.AbsolutePosition
+						local sSize = scrollParent.AbsoluteSize
+						if checkPos.X >= sPos.X and checkPos.X <= (sPos.X + sSize.X) and checkPos.Y >= sPos.Y and checkPos.Y <= (sPos.Y + sSize.Y) then
+							foundHover = entry
+							break
+						end
+					else
+						foundHover = entry
+						break
+					end
+				end
+			end
+		end
+	end
+
+	if foundHover then
+		HoverTitleLabel.Text = foundHover.Title
+		HoverDescLabel.Text = foundHover.Tip
+		local vpSize = if cam then cam.ViewportSize else Vector2.new(1920, 1080)
+		local tipX = math.min(mousePos.X + 18, vpSize.X - 280)
+		local tipY = math.min(mousePos.Y + 18, vpSize.Y - 70)
+		HoverTooltipFrame.Position = UDim2.fromOffset(tipX, tipY)
+		HoverTooltipFrame.Visible = true
+	else
+		HoverTooltipFrame.Visible = false
+	end
+
+	local char = GetCharacter()
+	local root = GetRootPart()
+	local hum = GetHumanoid()
+
+	-- Silent Aim FOV Circle & Red/Green Target Highlight
+	if Toggles.SilentAimGrab and Toggles.SilentAimGrab.Value then
+		FOVCircleFrame.Position = UDim2.fromOffset(mousePos.X, mousePos.Y)
+		FOVCircleFrame.Visible = (not Toggles.ShowSilentAimCircle) or Toggles.ShowSilentAimCircle.Value
+
+		local isGrabbing = Workspace:FindFirstChild("GrabParts") ~= nil and ActiveGrabTarget ~= nil
+		local displayTarget = if isGrabbing then ActiveGrabTarget else SilentAimCandidate
+
+		if isGrabbing and displayTarget and displayTarget.Parent then
+			FOVStroke.Color = COLOR_GREEN
+			TargetHighlight.FillColor = COLOR_GREEN
+			TargetHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+			local model = displayTarget:FindFirstAncestorOfClass("Model")
+			TargetHighlight.Adornee = if model and model ~= Workspace then model else displayTarget
+			TargetHighlight.Enabled = true
+			TargetInfoLabel.TextColor3 = COLOR_GREEN
+			TargetInfoLabel.Text = "抓取中: " .. (if model and model ~= Workspace then model.Name else displayTarget.Name)
+			TargetInfoLabel.Visible = true
+		elseif displayTarget and displayTarget.Parent then
+			FOVStroke.Color = COLOR_RED
+			TargetHighlight.FillColor = COLOR_RED
+			TargetHighlight.OutlineColor = Color3.fromRGB(255, 180, 180)
+			local model = displayTarget:FindFirstAncestorOfClass("Model")
+			TargetHighlight.Adornee = if model and model ~= Workspace then model else displayTarget
+			TargetHighlight.Enabled = true
+			TargetInfoLabel.TextColor3 = COLOR_RED
+			TargetInfoLabel.Text = "就绪: " .. (if model and model ~= Workspace then model.Name else displayTarget.Name)
+			TargetInfoLabel.Visible = true
+		else
+			FOVStroke.Color = COLOR_IDLE
+			TargetHighlight.Enabled = false
+			TargetInfoLabel.Visible = false
+		end
+	else
+		FOVCircleFrame.Visible = false
+		TargetHighlight.Enabled = false
+	end
+
+	-- Sync Gucci Anti-Grab Vehicle
+	if Toggles.GucciAntiGrab and Toggles.GucciAntiGrab.Value and GucciVehicle and GucciVehicle.Parent and root then
+		pcall(function()
+			GucciVehicle:PivotTo(root.CFrame * CFrame.new(0, -15, 0))
+			for _, p in ipairs(GucciVehicle:GetDescendants()) do
+				if p:IsA("BasePart") then
+					p.AssemblyLinearVelocity = Vector3.zero
+					p.AssemblyAngularVelocity = Vector3.zero
+				end
+			end
+		end)
+	end
+
+	if root and hum and hum.FloorMaterial ~= Enum.Material.Air and root.Position.Y > -40 then
+		LastSafeCFrame = root.CFrame
+	end
+
+	if Toggles.AntiVoid and Toggles.AntiVoid.Value and root then
+		if root.Position.Y < -120 then
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			root.CFrame = if LastSafeCFrame then (LastSafeCFrame + Vector3.new(0, 4, 0)) else CFrame.new(0, 25, 0)
+		end
+	end
+
+	-- Frame-Perfect Enemy Grab Weld Breaker & CFrame Tracker
+	if char and ((Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiKick and Toggles.AntiKick.Value)) then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer and plr.Character then
+				local theirGrab = plr.Character:FindFirstChild("GrabParts")
+				if theirGrab and BreakEnemyGrabParts(theirGrab) then
+					TriggerAntiGrabDefense()
+				end
+			end
+		end
+	end
+
+	local now = os.clock()
+	local isHeld = IsHeldValue and IsHeldValue.Value
+	local head = char and char:FindFirstChild("Head")
+	local partOwner = head and head:FindFirstChild("PartOwner")
+
+	if not isHeld and not partOwner and now >= AntiGrabGraceUntil and root then
+		SafeAntiGrabCFrame = root.CFrame
+	end
+
+	if isHeld or partOwner or now < AntiGrabGraceUntil then
+		if (Toggles.AntiGrab and Toggles.AntiGrab.Value) or (Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value) then
+			Struggle:FireServer()
+			if hum then
+				hum.Sit = false
+				hum.AutoRotate = true
+				hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+				local ragVal = hum:FindFirstChild("Ragdolled")
+				if ragVal and ragVal:IsA("BoolValue") then
+					ragVal.Value = false
+				end
+			end
+			local ragScript = char and char:FindFirstChild("RagdollPlayerCharacter")
+			local unragEvent = ragScript and ragScript:FindFirstChild("UnragdollThisCharacter")
+			if unragEvent and unragEvent:IsA("BindableEvent") then
+				unragEvent:Fire()
+			end
+			ZeroCharacterVelocity(char)
+			if root then
+				if Toggles.AntiNetworkOwnership and Toggles.AntiNetworkOwnership.Value and cam then
+					SetNetworkOwner:FireServer(root, cam.CFrame)
+				end
+			end
+			if partOwner then
+				partOwner:Destroy()
+			end
+		end
+	end
+
+	EnforceAntiGrabPhysicsShield()
+
+	-- Active Grab Modifiers (Strictly ignores Anchored / Baseplate / Map parts so you never get velocited!)
+	local grabParts = Workspace:FindFirstChild("GrabParts")
+	if grabParts and ActiveGrabTarget and ActiveGrabTarget.Parent then
+		if ActiveGrabTarget.Anchored then
+			ActiveGrabTarget.AssemblyLinearVelocity = Vector3.zero
+			ActiveGrabTarget.AssemblyAngularVelocity = Vector3.zero
+		elseif IsSafeMovablePart(ActiveGrabTarget) then
+			local dragPart = grabParts:FindFirstChild("DragPart") :: BasePart?
+			local orientPart = Workspace:FindFirstChild("RotateOrientPart") :: BasePart?
+
+			if Toggles.FreeFurtherReach and Toggles.FreeFurtherReach.Value and dragPart and cam then
+				dragPart.Position = cam.CFrame.Position + (cam.CFrame.LookVector * CustomGrabDistance)
+			end
+
+			if Toggles.SpinGrab and Toggles.SpinGrab.Value then
+				local speed = (Options.SpinGrabSpeed and Options.SpinGrabSpeed.Value) or 15
+				if orientPart then
+					orientPart.Orientation += Vector3.new(0, speed * 5, speed * 5)
+				end
+				if dragPart then
+					local dragAttach = dragPart:FindFirstChild("DragAttach") :: Attachment?
+					if dragAttach then
+						dragAttach.Orientation += Vector3.new(0, speed * 5, speed * 5)
+					end
+				end
+				ActiveGrabTarget.AssemblyAngularVelocity = Vector3.new(0, speed * 10, 0)
+			end
+
+			if Toggles.SkyGrab and Toggles.SkyGrab.Value and dragPart then
+				dragPart.Position += Vector3.new(0, 350, 0)
+			end
+
+			if Toggles.ChaosGrab and Toggles.ChaosGrab.Value and dragPart then
+				dragPart.Position += Vector3.new(math.random(-35, 35), math.random(-20, 35), math.random(-35, 35))
+			end
+
+			if Toggles.NoclipGrab and Toggles.NoclipGrab.Value then
+				local model = ActiveGrabTarget:FindFirstAncestorOfClass("Model")
+				if model and model ~= Workspace then
+					for _, p in ipairs(model:GetDescendants()) do
+						if p:IsA("BasePart") and not p.Anchored then
+							p.CanCollide = false
+						end
+					end
+				else
+					ActiveGrabTarget.CanCollide = false
+				end
+			end
+		end
+	end
+
+	-- Loop TP
+	if Toggles.LoopTP and Toggles.LoopTP.Value and root then
+		local mode = (Options.LoopTPMode and Options.LoopTPMode.Value) or "传送至玩家身后"
+		if mode == "指定传送点" then
+			local wpName = (Options.WaypointDropdown and Options.WaypointDropdown.Value) or "Spawn"
+			local wps = Workspace:FindFirstChild("Waypoints")
+			local wp = wps and wps:FindFirstChild(wpName)
+			if wp and wp:IsA("BasePart") then
+				root.CFrame = wp.CFrame + Vector3.new(0, 4, 0)
+			end
+		else
+			local targetName = Options.TargetPlayerDropdown and Options.TargetPlayerDropdown.Value
+			local targetPlr = targetName and Players:FindFirstChild(targetName)
+			local targetRoot = targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
+			if targetRoot then
+				if mode == "传送至玩家身后" then
+					root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3.5)
+				elseif mode == "传送至玩家头顶" then
+					root.CFrame = targetRoot.CFrame * CFrame.new(0, 8, 0)
+				elseif mode == "环绕玩家" then
+					OrbitAngle += dt * 4
+					local offset = Vector3.new(math.cos(OrbitAngle) * 8, 2, math.sin(OrbitAngle) * 8)
+					root.CFrame = CFrame.lookAt(targetRoot.Position + offset, targetRoot.Position)
+				end
+			end
+		end
+	end
+end))
+
+-- Periodic Background Loop (0.25s)
+local Running = true
+task.spawn(function()
+	while Running do
+		task.wait(0.25)
+		if not Running then
+			break
+		end
+
+		local char = GetCharacter()
+		local root = GetRootPart()
+
+		if Toggles.AutoAntiLag and Toggles.AutoAntiLag.Value then
+			local minFPS = (Options.AutoAntiLagFPS and Options.AutoAntiLagFPS.Value) or 35
+			if FPSCounter < minFPS then
+				RunAntiLagCleanup()
+			end
+		end
+
+		if Toggles.AntiInvis and Toggles.AntiInvis.Value then
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer and plr.Character then
+					for _, part in ipairs(plr.Character:GetChildren()) do
+						if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Name ~= "CamPart" and part.Transparency > 0.5 then
+							part.Transparency = 0
+						end
+					end
+				end
+			end
+		end
+
+		if Toggles.RainbowLine and Toggles.RainbowLine.Value then
+			RainbowHue = (RainbowHue + 0.05) % 1
+			local col = Color3.fromHSV(RainbowHue, 1, 1)
+			local seq = ColorSequence.new(col)
+			local beamColorFolder = LocalPlayer:FindFirstChild("BeamColor")
+			if beamColorFolder then
+				local seqHolder = beamColorFolder:FindFirstChild("ColorSequenceHolder")
+				local ballHolder = beamColorFolder:FindFirstChild("BallColorHolder")
+				if seqHolder and seqHolder:IsA("UIGradient") then
+					seqHolder.Color = seq
+				end
+				if ballHolder and ballHolder:IsA("Color3Value") then
+					ballHolder.Value = col
+				end
+			end
+			pcall(function()
+				UpdateLineColorsEvent:FireServer(seq, col, col, col, col, col, col, col, col, col)
+			end)
+		end
+
+		if Toggles.AutoCollectCoins and Toggles.AutoCollectCoins.Value and root then
+			for _, child in ipairs(Workspace:GetChildren()) do
+				if child.Name == "Coin5" or child.Name == "Coin10" or child.Name == "Coin25" then
+					local sp = child:FindFirstChild("SoundPart")
+					if sp and sp:IsA("BasePart") and firetouchinterest then
+						pcall(firetouchinterest, root, sp, 0)
+						pcall(firetouchinterest, root, sp, 1)
+					end
+				end
+			end
+		end
+
+		if Toggles.AutoSpinSlots and Toggles.AutoSpinSlots.Value then
+			local slotsFolder = Workspace:FindFirstChild("Slots")
+			if slotsFolder then
+				for _, slot in ipairs(slotsFolder:GetChildren()) do
+					local handle = slot:FindFirstChild("SlotHandle")
+					local lightBall = handle and handle:FindFirstChild("LightBall")
+					if lightBall and lightBall:IsA("BasePart") and lightBall.Material == Enum.Material.Neon then
+						pcall(function()
+							SetNetworkOwner:FireServer(lightBall, Workspace.CurrentCamera.CFrame)
+							CreateGrabLine:FireServer(lightBall, CFrame.new())
+							DestroyGrabLine:FireServer(lightBall)
+						end)
+					end
+				end
+			end
+		end
+
+		if Toggles.GrabAura and Toggles.GrabAura.Value and root then
+			local radius = (Options.GrabAuraRadius and Options.GrabAuraRadius.Value) or 25
+			local mode = (Options.GrabAuraMode and Options.GrabAuraMode.Value) or "甩飞"
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer and plr.Character then
+					local tRoot = plr.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local tHead = plr.Character:FindFirstChild("Head") :: BasePart?
+					if tRoot and (tRoot.Position - root.Position).Magnitude <= radius then
+						pcall(function()
+							SetNetworkOwner:FireServer(tHead or tRoot, Workspace.CurrentCamera.CFrame)
+							if mode == "甩飞" then
+								local dir = (tRoot.Position - root.Position).Unit
+								tRoot.AssemblyLinearVelocity = dir * 850 + Vector3.new(0, 350, 0)
+							elseif mode == "送入虚空" then
+								tRoot.CFrame = CFrame.new(0, Workspace.FallenPartsDestroyHeight - 20, 0)
+								tRoot.AssemblyLinearVelocity = Vector3.new(0, -5000, 0)
+							elseif mode == "抛向天空" then
+								tRoot.AssemblyLinearVelocity = Vector3.new(0, 1400, 0)
+							end
+						end)
+					end
+				end
+			end
+		end
+
+		local pcldCount = 0
+		for part in pairs(HazardCache.PCLD) do
+			if part and part.Parent then
+				pcldCount += 1
+				if Toggles.PCLDESP and Toggles.PCLDESP.Value then
+					part.Transparency = 0.35
+					if not PCLDHighlights[part] then
+						local hl = Instance.new("Highlight")
+						hl.FillColor = COLOR_RED
+						hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+						hl.FillTransparency = 0.4
+						hl.Parent = part
+						PCLDHighlights[part] = hl
+					end
+				end
+			end
+		end
+
+		pcall(function()
+			local heldTimer = LocalPlayer:FindFirstChild("HeldTimer")
+			local curReach = LocalPlayer:FindFirstChild("CurrentReach")
+			local defReach = LocalPlayer:FindFirstChild("DefaultReach")
+			local usedPts = LocalPlayer:FindFirstChild("UsedToyPoints")
+			local capPts = LocalPlayer:FindFirstChild("ToysLimitCap")
+			local canSpawn = LocalPlayer:FindFirstChild("CanSpawnToy")
+			local inPlot = LocalPlayer:FindFirstChild("InPlot")
+			local inOwned = LocalPlayer:FindFirstChild("InOwnedPlot")
+			local head = char and char:FindFirstChild("Head")
+			local ownerVal = head and head:FindFirstChild("PartOwner")
+			local bombCount = if type(ExplosionMaker.CurrentBombsTables) == "table" then #ExplosionMaker.CurrentBombsTables else 0
+
+			DiagLabels.HeldState:SetText(
+				string.format("被抓住: %s | 计时: %s", tostring(IsHeldValue and IsHeldValue.Value), tostring(heldTimer and heldTimer.Value))
+			)
+			DiagLabels.ReachState:SetText(
+				string.format("当前抓取距离: %s | 默认距离: %s", tostring(curReach and curReach.Value), tostring(defReach and defReach.Value))
+			)
+			DiagLabels.ToyPoints:SetText(
+				string.format(
+					"玩具点数: %s / %s | 可生成: %s",
+					tostring(usedPts and usedPts.Value),
+					tostring(capPts and capPts.Value),
+					tostring(canSpawn and canSpawn.Value)
+				)
+			)
+			DiagLabels.PlotState:SetText(
+				string.format("在地块内: %s | 在自有地块: %s", tostring(inPlot and inPlot.Value), tostring(inOwned and inOwned.Value))
+			)
+			DiagLabels.FPSState:SetText(
+				string.format("帧率: %d | 延迟: %d 毫秒", FPSCounter, math.floor(LocalPlayer:GetNetworkPing() * 1000))
+			)
+			DiagLabels.GrabTarget:SetText(
+				"抓取目标: " .. (if ActiveGrabTarget then ActiveGrabTarget:GetFullName() else "无")
+			)
+			DiagLabels.GrabOwner:SetText(
+				"头部持有者: " .. (if ownerVal and ownerVal:IsA("StringValue") then ownerVal.Value else "无")
+			)
+			DiagLabels.WorldCounts:SetText(
+				string.format("PCLD 检测区: %d | 活动炸弹: %d", pcldCount, bombCount)
+			)
+		end)
+	end
+end)
+
+-- ============================================================================
+-- CLEANUP & UNLOAD
+-- ============================================================================
+Env.FTAP_Obsidian_Cleanup = function()
+	Running = false
+	for _, conn in ipairs(Connections) do
+		if conn.Connected then
+			conn:Disconnect()
+		end
+	end
+	table.clear(Connections)
+
+	RaycastModule.RaycastFromCam = OriginalRaycastFn
+	ExplosionMaker.Explode = OriginalExplodeFn
+
+	local cam = Workspace.CurrentCamera
+	if cam then
+		cam.FieldOfView = 70
+	end
+
+	if OverlayGui then
+		OverlayGui:Destroy()
+	end
+
+	for inst, hl in pairs(PCLDHighlights) do
+		if hl then
+			hl:Destroy()
+		end
+		if inst and inst:IsA("BasePart") then
+			inst.Transparency = 1
+		end
+	end
+	table.clear(PCLDHighlights)
+
+	local char = GetCharacter()
+	if char then
+		local root = GetRootPart()
+		if root and WasAnchoredByAntiGrab then
+			root.Anchored = false
+		end
+		local stopVel = char:FindFirstChild("StopVelocity")
+		if stopVel and stopVel:IsA("LocalScript") then
+			stopVel.Disabled = false
+		end
+	end
+
+	pcall(function()
+		Library:Unload()
+	end)
+	Env.FTAP_Obsidian_Cleanup = nil
+end
+
+Library:OnUnload(function()
+	if Env.FTAP_Obsidian_Cleanup then
+		Env.FTAP_Obsidian_Cleanup()
+	end
+end)
