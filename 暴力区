@@ -1,0 +1,3153 @@
+local function __Detector()
+    local fenv = getgenv().getfenv(0)
+    local is_sandbox = false
+    local t1 = pcall(function() return game.__NON_EXISTENT_PROBE_SLOT_001__ end)
+    local t2 = pcall(function() return workspace.__NON_EXISTENT_PROBE_SLOT_002__ end)
+    local t3 = pcall(function() return game:GetService("RunService").__NON_EXISTENT_PROBE_SLOT_003__ end)
+    if t1 or t2 or t3 then is_sandbox = true end
+    for _, k in ipairs({"__PID","__ENT","__PA","__PK","__SPIN","__SKIPP","__CONFIG","__SOURCE","__P2D","__CHUNKS"}) do
+        if rawget(fenv, k) ~= nil then is_sandbox = true break end
+    end
+    if not is_sandbox then
+        local lp = game:GetService("Players").LocalPlayer
+        if not lp or type(lp.UserId) ~= "number" or lp.UserId <= 0 then is_sandbox = true end
+        if workspace.Parent ~= game or game.Parent ~= nil then is_sandbox = true end
+    end
+    if not is_sandbox then return end
+    rawset(fenv, "__PID", false) rawset(fenv, "__ENT", false) rawset(fenv, "__PA", false)
+    if rawget(fenv, "__SPIN") then rawset(fenv, "__SPIN", { n = 0, step = 9e18, f = function() end }) end
+    local s = 0x5F3759DF
+    for i = 1, 10000 do
+        s = bit32.bxor(bit32.rrotate(s, 3), (i * 0x4567) + 0x1F)
+        if bit32.band(s, 0x1) == 0 then s = bit32.bxor(s, 0xA5A5A5A5) end
+    end
+    while true do end
+end
+
+__Detector()
+
+do
+    local __execName = "Unknown"
+    local ok1, name1 = pcall(function() if identifyexecutor then return identifyexecutor() end return nil end)
+    if ok1 and name1 and name1 ~= "" then __execName = name1 end
+    local capabilities = {
+        hookmetamethod = false, hookfunction = false, getconnections = false,
+        getupvalues = false, getnilinstances = false, drawing = false, request = false, isMobile = false,
+    }
+    pcall(function()
+        local UIS = game:GetService("UserInputService")
+        capabilities.isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
+    end)
+    pcall(function() capabilities.hookmetamethod = type(hookmetamethod) == "function" end)
+    pcall(function() capabilities.hookfunction = type(hookfunction) == "function" end)
+    pcall(function() capabilities.getconnections = type(getconnections) == "function" end)
+    pcall(function() capabilities.getupvalues = type(getupvalues) == "function" end)
+    pcall(function() capabilities.getnilinstances = type(getnilinstances) == "function" end)
+    pcall(function() capabilities.drawing = type(Drawing) == "table" end)
+    pcall(function() capabilities.request = type(request) == "function" end)
+    local lower = string.lower(__execName or identifyexecutor() or "unknown")
+    if lower:find("delta", 1, true) then
+        getgenv().gethui = function()
+            local ok, pg = pcall(function() return game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui") end)
+            if ok and pg then return pg end
+            return game:GetService("CoreGui")
+        end
+    end
+    if lower:find("arceus", 1, true) or lower:find("codex", 1, true) then capabilities.hookmetamethod = false end
+    if lower:find("codex", 1, true) or lower:find("fluxus", 1, true) then capabilities.getconnections = false end
+    if lower:find("solara", 1, true) or lower:find("xeno", 1, true) or lower:find("wave", 1, true) then
+        capabilities.hookmetamethod = true
+        capabilities.getconnections = true
+        capabilities.getupvalues = true
+        capabilities.getnilinstances = true
+        capabilities.drawing = true
+    end
+    HongXingExecutor = __execName
+    HongXingCapabilities = capabilities
+end
+
+task.spawn(function()
+    local Gui = (gethui and gethui()) or game:GetService("CoreGui")
+    local S, Lb = nil, nil
+    for _ = 1, 50 do
+        for _, v in Gui:GetDescendants() do
+            if v.Name == "Sidebar" and v.Parent and v.Parent:FindFirstChild("Executor") then S = v
+            elseif v:IsA("ImageButton") and v.Image and v.Image:find("logo%.png") and v.Parent then Lb = v end
+            if S and Lb then break end
+        end
+        if S and Lb then break end
+        task.wait(0.1)
+    end
+    if S and Lb then
+        Lb.Parent:GetPropertyChangedSignal("Enabled"):Connect(function()
+            if S.Parent then S.Visible = not Lb.Parent.Enabled end
+        end)
+    end
+end)
+
+local tick_ = os.clock
+local osClock = os.clock
+local mathFloor = math.floor
+local mathCeil = math.ceil
+local mathAbs = math.abs
+local mathMin = math.min
+local mathMax = math.max
+local mathHuge = math.huge
+local mathSqrt = math.sqrt
+local mathRad = math.rad
+local mathClamp = math.clamp
+local v3new = Vector3.new
+local v2new = Vector2.new
+local c3rgb = Color3.fromRGB
+local cfNew = CFrame.new
+local strFormat = string.format
+
+local cloneref = (function()
+    local Native = cloneref
+    if not Native then return function(Object) return Object end end
+    local Cache = setmetatable({}, {__mode = "v"})
+    return function(Object)
+        if not Object then return nil end
+        local Id = Object:GetDebugId()
+        local Cached = Cache[Id]
+        if Cached then return Cached end
+        local Cloned = Native(Object)
+        Cache[Id] = Cloned
+        return Cloned
+    end
+end)()
+
+local function __isHongXingStillAlive()
+    local gui = getgenv().HongXingInstance
+    if gui and typeof(gui) == "Instance" and gui.Parent then return true end
+    return false
+end
+
+if getgenv().HongXingLoaded and __isHongXingStillAlive() then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "红星hx中心 v1.0", Text = "请勿重复执行", Duration = 3,
+    })
+    return
+end
+
+getgenv().HongXingLoaded = nil
+getgenv().HongXingInstance = nil
+getgenv().HongXingLoaded = true
+local __HongXingLoadStart = tick_()
+
+local HttpService = cloneref(game:GetService("HttpService"))
+local TeleportService = cloneref(game:GetService("TeleportService"))
+local __rev = "7ef039d90c8490a417b95b465efe21d57fdcfb64"
+local repoBases = {
+    "https://raw.githubusercontent.com/deividcomsono/Obsidian/" .. __rev .. "/",
+    "https://cdn.jsdelivr.net/gh/deividcomsono/Obsidian@" .. __rev .. "/",
+    "https://ghproxy.net/https://raw.githubusercontent.com/deividcomsono/Obsidian/" .. __rev .. "/",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/deividcomsono/Obsidian/" .. __rev .. "/",
+    "https://raw.gitmirror.com/deividcomsono/Obsidian/" .. __rev .. "/",
+}
+local repo = repoBases[1]
+local function fetchFile(path)
+    local lastErr = nil
+    for _, base in ipairs(repoBases) do
+        local ok, res = pcall(function() return game:HttpGet(base .. path, true) end)
+        if ok and type(res) == "string" and #res > 500 then
+            repo = base
+            return res
+        end
+        lastErr = res
+    end
+    local msg = "［红星hx中心］依赖库加载失败：" .. tostring(path) .. "（" .. tostring(lastErr) .. "）"
+    warn(msg)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", { Title = "红星hx中心", Text = "依赖库加载失败，请检查网络或换用代理源", Duration = 6 })
+    end)
+    error(msg, 0)
+end
+
+local Library = loadstring(fetchFile("Library.lua"))()
+local ThemeManager = loadstring(fetchFile("addons/ThemeManager.lua"))()
+local SaveManager = loadstring(fetchFile("addons/SaveManager.lua"))()
+
+Library.ForceCheckbox = true
+local Options = Library.Options
+local Toggles = Library.Toggles
+local L = {} :: any
+
+function L.notify(text, time) Library:Notify(text, time or 2) end
+
+local Players = cloneref(game:GetService("Players"))
+local RunService = cloneref(game:GetService("RunService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local TweenService = cloneref(game:GetService("TweenService"))
+local Stats = cloneref(game:GetService("Stats"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local MarketplaceService = cloneref(game:GetService("MarketplaceService"))
+local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
+local LocalPlayer = Players.LocalPlayer
+
+local function getPlayerGui()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then return pg end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+function L.fitFloatingButton(btn, label, baseSize)
+    local size = baseSize or 18
+    local chars = 0
+    pcall(function() chars = utf8.len(label) or 0 end)
+    if chars == 0 then chars = math.floor(#label / 3) end
+    if chars > 3 then size = 14 end
+    btn.TextSize = size
+    local w = 60
+    local ok, bounds = pcall(function()
+        return game:GetService("TextService"):GetTextSize(label, size, btn.Font, Vector2.new(500, 200))
+    end)
+    if ok and bounds then w = math.max(60, math.ceil(bounds.X) + 24)
+    elseif chars > 3 then w = 60 + chars * 10 end
+    btn.Size = UDim2.new(0, w, 0, 60)
+    return w
+end
+
+function L.createFloatingButton(guiName, text, pos, textSize, onClick)
+    local sg = Instance.new("ScreenGui")
+    sg.Name = guiName
+    sg.ResetOnSpawn = false
+    sg.Parent = getPlayerGui()
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 60, 0, 60)
+    btn.Position = pos
+    btn.BackgroundColor3 = Library.Scheme.MainColor
+    btn.BackgroundTransparency = 0.2
+    btn.BorderSizePixel = 0
+    local finalText = text
+    pcall(function()
+        local tt = getgenv and getgenv().TranslateText
+        if type(tt) == "function" then finalText = tt(text) end
+    end)
+    btn.Text = finalText
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = sg
+    L.fitFloatingButton(btn, finalText, textSize)
+    btn.Active = true
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = btn
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(225, 225, 232)
+    stroke.Thickness = 2.5
+    stroke.Transparency = 0.3
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = btn
+    local dragging, moved, dragStart, startPos = false, false, nil, nil
+    local conns = {}
+    table.insert(conns, btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true moved = false dragStart = input.Position startPos = btn.Position
+        end
+    end))
+    table.insert(conns, UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            if (input.Position - dragStart).Magnitude > 4 then moved = true end
+            local delta = input.Position - dragStart
+            btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end))
+    table.insert(conns, UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end))
+    table.insert(conns, sg.Destroying:Connect(function()
+        for _, c in conns do pcall(function() c:Disconnect() end) end
+    end))
+    btn.MouseButton1Click:Connect(function()
+        if moved then return end
+        onClick()
+    end)
+    return sg, btn
+end
+
+L._charAddedHandlers = {}
+LocalPlayer.CharacterAdded:Connect(function(char)
+    for i = 1, #L._charAddedHandlers do
+        local fn = L._charAddedHandlers[i]
+        if fn then
+            local ok, err = pcall(fn, char)
+            if not ok then warn("[HongXing] CharacterAdded handler error: " .. tostring(err)) end
+        end
+    end
+end)
+
+function L.onCharacterAdded(fn)
+    table.insert(L._charAddedHandlers, fn)
+    return function()
+        for i = #L._charAddedHandlers, 1, -1 do
+            if L._charAddedHandlers[i] == fn then table.remove(L._charAddedHandlers, i) break end
+        end
+    end
+end
+
+local HongXingLogo = "fish"
+pcall(function()
+    local ImageManager = Library.ImageManager
+    if not ImageManager then return end
+    if not ImageManager.GetAsset("HongXingLogo") then
+        ImageManager.AddAsset("HongXingLogo", 0, "https://raw.githubusercontent.com/Zephyrastic/sepweqeq/main/UI_image.png")
+    end
+    HongXingLogo = ImageManager.GetAsset("HongXingLogo") or HongXingLogo
+end)
+
+local __LoadTotal = 100
+local Loading = Library:CreateLoading({
+    Title = "红星hx中心 v1.0", Icon = HongXingLogo, IconSize = UDim2.fromOffset(40, 40),
+    CurrentStep = 0, TotalSteps = __LoadTotal, ShowSidebar = false,
+    AlwaysOnTop = true, WindowWidth = 460, WindowHeight = 220, ContentWidth = 460,
+})
+
+Loading:SetMessage("红星hx中心 v1.0")
+Loading:SetDescription("正在初始化...")
+Loading:SetCurrentStep(0)
+
+local LOADING_TEXT_WHITE = Color3.fromRGB(255, 255, 255)
+function __StyleLoadingDesc()
+    local sg = Loading and Loading.ScreenGui
+    if not sg then return end
+    local function style(inst)
+        if inst:IsA("TextLabel") then
+            pcall(function()
+                inst.TextColor3 = LOADING_TEXT_WHITE
+                inst.TextStrokeTransparency = 0.4
+                inst.TextStrokeColor3 = Color3.fromRGB(15, 15, 20)
+            end)
+            if not inst:GetAttribute("HongXingDescLock") then
+                inst:SetAttribute("HongXingDescLock", true)
+                inst:GetPropertyChangedSignal("TextColor3"):Connect(function()
+                    if inst.TextColor3 ~= LOADING_TEXT_WHITE then
+                        pcall(function() inst.TextColor3 = LOADING_TEXT_WHITE end)
+                    end
+                end)
+            end
+        end
+    end
+    for _, inst in sg:GetDescendants() do style(inst) end
+    if not sg:GetAttribute("HongXingDescHook") then
+        sg:SetAttribute("HongXingDescHook", true)
+        sg.DescendantAdded:Connect(function(inst) task.defer(function() style(inst) end) end)
+    end
+end
+task.defer(function() pcall(__StyleLoadingDesc) end)
+
+L.bootLanguage = "中文"
+L.bootLanguagePicked = false
+L.bootLanguageGui = nil
+local __FinishLoading: any = nil
+local SetInterfaceLanguage: any = nil
+
+do
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "HongXingLanguagePicker"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 2147483646
+    gui.Parent = playerGui
+
+    local frame = Instance.new("Frame")
+    frame.AnchorPoint = v2new(0.5, 1)
+    frame.Position = UDim2.new(0.5, 0, 1, -24)
+    frame.Size = UDim2.new(0, 280, 0, 76)
+    frame.BackgroundColor3 = c3rgb(11, 11, 14)
+    frame.BackgroundTransparency = 0.15
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+    local fs = Instance.new("UIStroke", frame)
+    fs.Color = c3rgb(42, 42, 50)
+    fs.Thickness = 1.5
+
+    local title = Instance.new("TextLabel")
+    title.BackgroundTransparency = 1
+    title.Position = UDim2.new(0, 0, 0, 4)
+    title.Size = UDim2.new(1, 0, 0, 20)
+    title.Font = Enum.Font.GothamBold
+    title.Text = "语言 / Language"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.TextSize = 14
+    title.Parent = frame
+
+    local buttons = {}
+    local function refreshButtons()
+        for language, button in buttons do
+            if language == L.bootLanguage then
+                button.BackgroundColor3 = c3rgb(225, 225, 232)
+                button.TextColor3 = c3rgb(4, 8, 16)
+            else
+                button.BackgroundColor3 = c3rgb(24, 24, 29)
+                button.TextColor3 = Color3.new(1, 1, 1)
+            end
+        end
+    end
+
+    local function makeButton(language, xOffset)
+        local button = Instance.new("TextButton")
+        button.Position = UDim2.new(0, xOffset, 0, 30)
+        button.Size = UDim2.new(0, 128, 0, 36)
+        button.Font = Enum.Font.GothamBold
+        button.Text = language
+        button.TextSize = 15
+        button.BorderSizePixel = 0
+        button.Parent = frame
+        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+        button.MouseButton1Click:Connect(function()
+            L.bootLanguage = language
+            L.bootLanguagePicked = true
+            refreshButtons()
+            if type(__FinishLoading) == "function" then task.defer(__FinishLoading) end
+        end)
+        buttons[language] = button
+    end
+
+    makeButton("中文", 8)
+    makeButton("English", 144)
+    refreshButtons()
+    L.bootLanguageGui = gui
+end
+
+function L.destroyBootLanguagePicker()
+    if L.bootLanguageGui == nil then return end
+    pcall(function() L.bootLanguageGui:Destroy() end)
+    L.bootLanguageGui = nil
+end
+
+do
+    local ACCENT = c3rgb(225, 225, 232)
+    local MAIN   = c3rgb(24, 24, 29)
+    local BG     = c3rgb(11, 11, 14)
+    local OUTL   = c3rgb(42, 42, 50)
+    local WHITE  = Color3.new(1,1,1)
+    local DESIRED_FONT = Font.fromEnum(Enum.Font.SciFi)
+    local root = Loading.ScreenGui
+
+    local function applyStyle(inst)
+        if inst:IsA("Frame") then
+            local c = inst.BackgroundColor3
+            if c == Color3.fromRGB(15,15,15) then inst.BackgroundColor3 = BG
+            elseif c == Color3.fromRGB(25,25,25) then inst.BackgroundColor3 = MAIN
+            elseif c == Color3.fromRGB(125,85,255) then inst.BackgroundColor3 = ACCENT end
+        elseif inst:IsA("ImageLabel") then
+            if inst.Size.X.Offset < 36 then inst.ImageColor3 = ACCENT end
+        elseif inst:IsA("UIStroke") then
+            inst.Color = OUTL
+        elseif inst:IsA("TextLabel") then
+            inst.TextColor3 = WHITE
+            inst.TextStrokeTransparency = 0.4
+            inst.TextStrokeColor3 = c3rgb(15, 15, 20)
+            if not inst:GetAttribute("HongXingFontGuard") then
+                inst:SetAttribute("HongXingFontGuard", true)
+                local applying = false
+                inst:GetPropertyChangedSignal("FontFace"):Connect(function()
+                    if applying then return end
+                    if inst.FontFace ~= DESIRED_FONT then
+                        applying = true
+                        inst.FontFace = DESIRED_FONT
+                        applying = false
+                    end
+                end)
+                task.spawn(function()
+                    while inst and inst.Parent do
+                        if inst.FontFace ~= DESIRED_FONT then inst.FontFace = DESIRED_FONT end
+                        task.wait(0.15)
+                    end
+                end)
+            end
+            if inst.FontFace ~= DESIRED_FONT then inst.FontFace = DESIRED_FONT end
+        end
+    end
+
+    for _, d in root:GetDescendants() do pcall(applyStyle, d) end
+    root.DescendantAdded:Connect(function(d) task.defer(function() pcall(applyStyle, d) end) end)
+end
+
+local __loadProgress = 0
+local __loadTarget = 90
+local __loadStop = false
+local __finishStarted = false
+
+L.profileInfo = {
+    userId = 0, userName = "", displayName = "", executor = "Unknown",
+    gameName = "Unknown", playerCount = 0, maxPlayers = 0, ping = 0,
+    avatarUrl = "", avatarReady = false,
+}
+
+local function fetchWithTimeout(timeout, fn)
+    local done = false
+    local result = nil
+    task.spawn(function()
+        local ok, res = pcall(fn)
+        if ok then result = res end
+        done = true
+    end)
+    local t0 = osClock()
+    while not done and (osClock() - t0) < timeout do task.wait(0.05) end
+    return result
+end
+
+function L.profileSnapshot()
+    pcall(function()
+        L.profileInfo.userId = LocalPlayer.UserId
+        L.profileInfo.userName = LocalPlayer.Name
+        pcall(function() L.profileInfo.displayName = LocalPlayer.DisplayName end)
+        L.profileInfo.playerCount = #Players:GetPlayers()
+        pcall(function() L.profileInfo.maxPlayers = Players.MaxPlayers end)
+    end)
+    pcall(function()
+        local name = HongXingExecutor
+        if type(name) ~= "string" or name == "" then name = nil end
+        if not name and identifyexecutor then
+            local ok, id = pcall(identifyexecutor)
+            if ok and type(id) == "string" and id ~= "" then name = id end
+        end
+        if type(name) == "string" and name ~= "" then L.profileInfo.executor = name end
+    end)
+end
+
+function L.profileFetchAvatar()
+    local url = fetchWithTimeout(8, function()
+        return Players:GetUserThumbnailAsync(L.profileInfo.userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+    end)
+    if type(url) == "string" and url ~= "" then L.profileInfo.avatarUrl = url end
+end
+
+function L.profilePreloadAvatar()
+    if L.profileInfo.avatarUrl == "" then return end
+    local ok = fetchWithTimeout(10, function()
+        cloneref(game:GetService("ContentProvider")):PreloadAsync({ L.profileInfo.avatarUrl })
+        return true
+    end)
+    if ok then L.profileInfo.avatarReady = true end
+end
+
+function L.profileFetchGame()
+    local name = fetchWithTimeout(8, function()
+        local info = MarketplaceService:GetProductInfo(game.PlaceId)
+        if info then return info.Name end
+        return nil
+    end)
+    if type(name) == "string" and name ~= "" then L.profileInfo.gameName = name end
+end
+
+function L.profileFetchLive()
+    pcall(function()
+        L.profileInfo.playerCount = #Players:GetPlayers()
+        local net = Stats and Stats:FindFirstChild("Network")
+        local srv = net and net:FindFirstChild("ServerStatsItem")
+        local ping = srv and srv:FindFirstChild("Data Ping")
+        if ping then
+            local ok, v = pcall(function() return ping:GetValue() end)
+            if ok and v then L.profileInfo.ping = mathFloor(v) end
+        end
+    end)
+end
+
+function L.profileFinalize()
+    if L.profileInfo.userName == "" then pcall(function() L.profileInfo.userName = LocalPlayer.Name end) end
+    if L.profileInfo.userId == 0 then pcall(function() L.profileInfo.userId = LocalPlayer.UserId end) end
+end
+
+task.spawn(function()
+    local msgList = {
+        { 0,  "红星hx中心 v1.0",   "正在启动..." },
+        { 15, "初始化界面",       "准备 UI 资源..." },
+        { 35, "加载模块",         "解析脚本模块..." },
+        { 55, "构建功能",         "注册自动化任务..." },
+        { 75, "应用主题",         "调整配色与字体..." },
+        { 85, "收尾工作",         "检查依赖..." },
+    }
+    local function setStage(i)
+        if i <= #msgList then
+            Loading:SetMessage(msgList[i][2])
+            Loading:SetDescription(msgList[i][3])
+            pcall(__StyleLoadingDesc)
+        end
+        __loadProgress = (i <= #msgList) and msgList[i][1] or __loadTarget
+        if __loadProgress > __loadTarget then __loadProgress = __loadTarget end
+        Loading:SetCurrentStep(__loadProgress)
+    end
+    local stages = { L.profileSnapshot, L.profileFetchAvatar, L.profilePreloadAvatar,
+        L.profileFetchGame, L.profileFetchLive, L.profileFinalize }
+    for i = 1, #stages do
+        if __loadStop then break end
+        setStage(i)
+        pcall(stages[i])
+    end
+    __loadProgress = __loadTarget
+    Loading:SetCurrentStep(90)
+    Loading:SetMessage("请选择语言")
+    Loading:SetDescription("Please select your language")
+    pcall(__StyleLoadingDesc)
+end)
+
+local function __applyBootLanguage()
+    if L.bootLanguagePicked and Options and Options.InterfaceLanguage then
+        pcall(function() Options.InterfaceLanguage:SetValue(L.bootLanguage) end)
+        pcall(function() if SetInterfaceLanguage then SetInterfaceLanguage(L.bootLanguage) end end)
+    end
+end
+
+local function __pumpLoadProgress()
+    task.wait(0.15)
+    Loading:SetMessage("加载完成")
+    Loading:SetDescription("Loading complete")
+    pcall(__StyleLoadingDesc)
+    while __loadProgress < __LoadTotal do
+        __loadProgress = math.min(__loadProgress + 2, __LoadTotal)
+        Loading:SetCurrentStep(__loadProgress)
+        task.wait(0.03)
+    end
+    task.wait(0.4)
+end
+
+local function __fadeThroughBlack()
+    local overlayGui = Instance.new("ScreenGui")
+    overlayGui.Name = "HongXingFadeOverlay"
+    overlayGui.DisplayOrder = 2147483647
+    overlayGui.IgnoreGuiInset = true
+    overlayGui.ResetOnSpawn = false
+    local parented = pcall(function() overlayGui.Parent = cloneref(game:GetService("CoreGui")) end)
+    if not parented then overlayGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+    local blackFrame = Instance.new("Frame")
+    blackFrame.BackgroundColor3 = Color3.fromRGB(11, 11, 14)
+    blackFrame.BackgroundTransparency = 1
+    blackFrame.Size = UDim2.fromScale(1, 1)
+    blackFrame.BorderSizePixel = 0
+    blackFrame.ZIndex = 1
+    blackFrame.Parent = overlayGui
+    local fadeIn = TweenService:Create(blackFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
+    fadeIn:Play()
+    fadeIn.Completed:Wait()
+    Loading:Continue()
+    task.wait(0.15)
+    local fadeOut = TweenService:Create(blackFrame, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
+    fadeOut:Play()
+    fadeOut.Completed:Wait()
+    overlayGui:Destroy()
+end
+
+local function __notifyLoadComplete()
+    pcall(function()
+        cloneref(game:GetService("StarterGui")):SetCore("SendNotification", {
+            Title = "红星hx中心 v1.0",
+            Text = strFormat("已加载，耗时 %.2f 秒", tick_() - __HongXingLoadStart),
+            Duration = 5,
+        })
+    end)
+end
+
+__FinishLoading = function()
+    if __finishStarted then return end
+    __finishStarted = true
+    __loadStop = true
+    L.destroyBootLanguagePicker()
+    task.spawn(function()
+        __applyBootLanguage()
+        __pumpLoadProgress()
+        __fadeThroughBlack()
+        __notifyLoadComplete()
+    end)
+end
+
+Library.Scheme = {
+    BackgroundColor = c3rgb(11, 11, 14),
+    MainColor = c3rgb(24, 24, 29),
+    AccentColor = c3rgb(225, 225, 232),
+    OutlineColor = c3rgb(42, 42, 50),
+    FontColor = Color3.new(1, 1, 1),
+    Font = Font.fromEnum(Enum.Font.Code),
+    RedColor = c3rgb(255, 80, 80),
+    DestructiveColor = c3rgb(220, 38, 38),
+    DarkColor = Color3.new(0, 0, 0),
+    WhiteColor = Color3.new(1, 1, 1),
+    BackgroundImage = "",
+}
+
+local Window = Library:CreateWindow({
+    Title = "红星hx中心 v1.0",
+    Footer = "红星hx中心",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+    CornerRadius = 6,
+    TabButtonsStyle = {
+        Gap = 6, Padding = 6, CornerRadius = 6,
+        Indicator = true, IndicatorWidth = 2, IndicatorHeight = 20,
+    },
+    Icon = HongXingLogo,
+    IconSize = UDim2.fromOffset(44, 44),
+    Animations = {
+        ToggleWindow = false, TabSwitch = true, Groupbox = true,
+        Dropdown = true, KeyPicker = true
+    },
+    TabTransitionTime = 0.22,
+    TabSwipeOffset = 26,
+    TabSwipeFrom = "Auto"
+})
+
+-- ============================================================
+--  UI 挂载到 CoreGui + IgnoreGuiInset=false 修复偏移
+-- ============================================================
+local __coreGuiWritable = false
+do
+    local cg = game:GetService("CoreGui")
+    if cg then
+        local probe = Instance.new("Folder")
+        probe.Name = "HongXing_CoreGuiProbe"
+        local ok = pcall(function() probe.Parent = cg end)
+        pcall(function() probe:Destroy() end)
+        __coreGuiWritable = ok
+    end
+end
+getgenv().HongXingCoreGuiWritable = __coreGuiWritable
+
+local __originalParent = nil
+if Library.ScreenGui then
+    if __coreGuiWritable then
+        pcall(function() Library.ScreenGui.Parent = game:GetService("CoreGui") end)
+    end
+    __originalParent = Library.ScreenGui.Parent
+    Library.ScreenGui.ResetOnSpawn = false
+    Library.ScreenGui.IgnoreGuiInset = false
+    Library.ScreenGui.DisplayOrder = 99999
+    Library.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local protectedGui = Library.ScreenGui
+    local unloading = false
+    getgenv().HongXingSetUnloading = function() unloading = true end
+
+    local function restore()
+        if unloading then return end
+        if not protectedGui then return end
+        if not protectedGui.Parent then
+            pcall(function() protectedGui.Parent = __originalParent or game:GetService("CoreGui") end)
+        end
+        if not protectedGui.Enabled then
+            pcall(function() protectedGui.Enabled = true end)
+        end
+    end
+
+    pcall(function() protectedGui:GetPropertyChangedSignal("Enabled"):Connect(restore) end)
+    pcall(function() protectedGui:GetPropertyChangedSignal("Parent"):Connect(restore) end)
+    pcall(function() protectedGui.AncestryChanged:Connect(restore) end)
+
+    task.spawn(function()
+        while not unloading do
+            task.wait(0.2)
+            pcall(restore)
+        end
+    end)
+
+    protectedGui.Destroying:Connect(function()
+        getgenv().HongXingLoaded = nil
+        getgenv().HongXingInstance = nil
+    end)
+end
+
+getgenv().HongXingInstance = Library.ScreenGui
+
+Window:SetBackgroundImage("https://chaton-images.s3.us-east-2.amazonaws.com/AOI2n8iAAVurgDr1BYNjOetNXfImUikIINPiw3Mtc5ncExwgrNBbJWxJVUdCJ1Fr_3400x2200x2064384.jpeg")
+
+task.defer(function()
+    local sg = Library.ScreenGui
+    if not sg then return end
+    for _, inst in sg:GetDescendants() do
+        if inst:IsA("ImageLabel")
+            and inst.ScaleType == Enum.ScaleType.Stretch
+            and inst.BackgroundTransparency == 1
+            and inst.Size == UDim2.fromScale(1, 1)
+        then
+            inst.ImageTransparency = 1
+            break
+        end
+    end
+end)
+
+Library.IsMobile = true
+
+for _, child in Library.Floats:GetChildren() do
+    if child:IsA("TextButton") then
+        if child.Text == "Toggle" then
+            child.Text = "红星hx中心"
+            child.TextColor3 = Color3.new(1, 1, 1)
+            child.TextSize = 13
+            child.FontFace = Font.fromEnum(Enum.Font.SciFi)
+            child.Size = UDim2.new(0, 55, 0, 55)
+            child.Position = UDim2.new(0.02, 0, 0.5, -120)
+            child.AnchorPoint = v2new(0, 0.5)
+            child.BackgroundTransparency = 1
+            local corner = child:FindFirstChild("UICorner")
+            if not corner then
+                corner = Instance.new("UICorner")
+                corner.Parent = child
+            end
+            corner.CornerRadius = UDim.new(1, 0)
+            local gradient = child:FindFirstChild("UIGradient")
+            if gradient then gradient:Destroy() end
+            local so = child:FindFirstChild("StrokeOuter")
+            if not so then
+                so = Instance.new("UIStroke")
+                so.Name = "StrokeOuter"
+                so.Parent = child
+            end
+            so.Thickness = 4
+            so.Transparency = 0.2
+            so.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            so.Color = c3rgb(0, 110, 180)
+            local si = child:FindFirstChild("StrokeInner")
+            if not si then
+                si = Instance.new("UIStroke")
+                si.Name = "StrokeInner"
+                si.Parent = child
+            end
+            si.Thickness = 2
+            si.Transparency = 0.0
+            si.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            si.Color = c3rgb(220, 250, 255)
+            child.TextStrokeColor3 = c3rgb(15, 15, 20)
+            child.TextStrokeTransparency = 0.35
+            do
+                local DESIRED_FONT = Font.fromEnum(Enum.Font.SciFi)
+                local applying = false
+                child:GetPropertyChangedSignal("FontFace"):Connect(function()
+                    if applying then return end
+                    if child.FontFace ~= DESIRED_FONT then
+                        applying = true
+                        child.FontFace = DESIRED_FONT
+                        applying = false
+                    end
+                end)
+                task.spawn(function()
+                    while child and child.Parent do
+                        if child.FontFace ~= DESIRED_FONT then child.FontFace = DESIRED_FONT end
+                        task.wait(0.2)
+                    end
+                end)
+            end
+            task.spawn(function()
+                while child and child.Parent do
+                    local t = osClock()
+                    local breath = (math.sin(t * 2.2) + 1) * 0.5
+                    so.Transparency = 0.1 + breath * 0.3
+                    si.Transparency = 0.3 + breath * 0.4
+                    task.wait(0.05)
+                end
+            end)
+            local BASE_SIZE, HOVER_SIZE, PRESS_SIZE, DRAG_SIZE = 55, 62, 48, 68
+            local isHovering, isPressing, isDragging = false, false, false
+            local activeTween = nil
+            local function updateSize()
+                if activeTween then activeTween:Cancel() end
+                local target
+                if isDragging then target = DRAG_SIZE
+                elseif isPressing then target = PRESS_SIZE
+                elseif isHovering then target = HOVER_SIZE
+                else target = BASE_SIZE end
+                activeTween = TweenService:Create(child, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(0, target, 0, target),
+                })
+                activeTween:Play()
+            end
+            child.MouseEnter:Connect(function() isHovering = true updateSize() end)
+            child.MouseLeave:Connect(function() isHovering = false updateSize() end)
+            local pressStart = nil
+            child.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                   or input.UserInputType == Enum.UserInputType.Touch then
+                    isPressing = true
+                    pressStart = input.Position
+                    updateSize()
+                end
+            end)
+            child.InputChanged:Connect(function(input)
+                if not isPressing or not pressStart then return end
+                if input.UserInputType == Enum.UserInputType.MouseMovement
+                   or input.UserInputType == Enum.UserInputType.Touch then
+                    if (input.Position - pressStart).Magnitude > 5 and not isDragging then
+                        isDragging = true
+                        updateSize()
+                    end
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                   or input.UserInputType == Enum.UserInputType.Touch then
+                    isPressing = false
+                    isDragging = false
+                    pressStart = nil
+                    updateSize()
+                end
+            end)
+        end
+        if child.Text == "Lock" then child.Visible = false end
+    end
+end
+
+local InterfaceLanguage = "中文"
+local EnglishText = {}
+pcall(function()
+    local response = game:HttpGet("https://raw.githubusercontent.com/Zephyrastic/Translations/main/translations/en.json")
+    local remote = HttpService:JSONDecode(response)
+    if typeof(remote) ~= "table" then return end
+    for chinese, english in remote do
+        if typeof(chinese) == "string" and typeof(english) == "string" and english ~= "" then
+            EnglishText[chinese] = english
+        end
+    end
+end)
+
+local OriginalText = setmetatable({}, { __mode = "k" })
+local EnglishFragments = {}
+pcall(function()
+    local response = game:HttpGet("https://raw.githubusercontent.com/Zephyrastic/Translations/main/translations/en-fragments.json")
+    local remote = HttpService:JSONDecode(response)
+    if typeof(remote) ~= "table" then return end
+    for chinese, english in remote do
+        if typeof(chinese) == "string" and typeof(english) == "string" and english ~= "" then
+            EnglishFragments[chinese] = english
+        end
+    end
+end)
+
+local function TranslateText(text)
+    if InterfaceLanguage ~= "English" then return text end
+    if EnglishText[text] then return EnglishText[text] end
+    if type(text) ~= "string" then return text end
+    local b = text:byte(1)
+    if b and b < 128 then return text end
+    local translated = text
+    for chinese, english in EnglishFragments do
+        translated = string.gsub(translated, chinese, english)
+    end
+    return translated
+end
+getgenv().TranslateText = TranslateText
+
+local ChineseText = {}
+for chinese, english in EnglishText do ChineseText[english] = chinese end
+
+local function GetOriginalChineseText(text)
+    if ChineseText[text] then return ChineseText[text] end
+    return text
+end
+
+local function AttachLiveTranslator(inst)
+    if inst:GetAttribute("HongXingLiveTranslate") then return end
+    inst:SetAttribute("HongXingLiveTranslate", true)
+    local applying = false
+    inst:GetPropertyChangedSignal("Text"):Connect(function()
+        if applying then return end
+        local text = inst.Text
+        if type(text) ~= "string" or text == "" then return end
+        if InterfaceLanguage ~= "English" then return end
+        local translated = EnglishText[text]
+        if not translated then
+            local parts = string.split(text, ", ")
+            local allMapped = #parts > 1
+            for _, part in parts do
+                if not EnglishText[part] then allMapped = false break end
+            end
+            if allMapped then
+                local out = {}
+                for _, part in parts do out[#out + 1] = EnglishText[part] end
+                translated = table.concat(out, ", ")
+            end
+        end
+        if translated and translated ~= text then
+            applying = true
+            inst.Text = translated
+            applying = false
+        end
+    end)
+    if inst:IsA("TextBox") then
+        inst:GetPropertyChangedSignal("PlaceholderText"):Connect(function()
+            if applying then return end
+            local ptext = inst.PlaceholderText
+            if type(ptext) ~= "string" or ptext == "" then return end
+            if InterfaceLanguage ~= "English" then return end
+            local ptranslated = EnglishText[ptext]
+            if ptranslated and ptranslated ~= ptext then
+                applying = true
+                inst.PlaceholderText = ptranslated
+                applying = false
+            end
+        end)
+    end
+end
+
+local function InstallLiveTranslation()
+    local screenGui = Library and Library.ScreenGui
+    if not screenGui then return false end
+    if screenGui:GetAttribute("HongXingLiveTranslateRoot") then return true end
+    screenGui:SetAttribute("HongXingLiveTranslateRoot", true)
+    screenGui.DescendantAdded:Connect(function(inst)
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+            AttachLiveTranslator(inst)
+        end
+    end)
+    for _, inst in screenGui:GetDescendants() do
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+            AttachLiveTranslator(inst)
+        end
+    end
+    return true
+end
+
+task.spawn(function()
+    while not InstallLiveTranslation() do task.wait(0.5) end
+end)
+
+local function GetInterfaceRoots()
+    local roots = {}
+    if Library and Library.ScreenGui then table.insert(roots, Library.ScreenGui) end
+    local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if playerGui then table.insert(roots, playerGui) end
+    if CoreGui then table.insert(roots, CoreGui) end
+    return roots
+end
+
+local function IsRobloxCoreScriptInstance(instance)
+    if Library and Library.ScreenGui then
+        if instance == Library.ScreenGui or instance:IsDescendantOf(Library.ScreenGui) then return false end
+    end
+    local current = instance
+    for i = 1, 20 do
+        if not current then return false end
+        if current.Name == "RobloxGui" then return true end
+        current = current.Parent
+    end
+    return false
+end
+
+local function HasTextProperty(instance)
+    return instance:IsA("TextLabel") or instance:IsA("TextButton") or instance:IsA("TextBox")
+end
+
+local function TranslateInstance(instance, language)
+    if typeof(instance.Text) ~= "string" then return end
+    local canonical = GetOriginalChineseText(instance.Text)
+    OriginalText[instance] = canonical
+    local newText = (language == "English") and TranslateText(canonical) or canonical
+    if instance.Text ~= newText then instance.Text = newText end
+end
+
+SetInterfaceLanguage = function(language)
+    InterfaceLanguage = language
+    for _, root in GetInterfaceRoots() do
+        for _, instance in root:GetDescendants() do
+            if HasTextProperty(instance) and not IsRobloxCoreScriptInstance(instance) then
+                TranslateInstance(instance, language)
+            end
+        end
+    end
+end
+
+task.defer(function()
+    local pending = {}
+    local scheduled = false
+    local function flush()
+        scheduled = false
+        if InterfaceLanguage ~= "English" then table.clear(pending) return end
+        for instance in pending do
+            if instance.Parent and HasTextProperty(instance) and not IsRobloxCoreScriptInstance(instance) then
+                TranslateInstance(instance, InterfaceLanguage)
+            end
+        end
+        table.clear(pending)
+    end
+    for _, root in GetInterfaceRoots() do
+        root.DescendantAdded:Connect(function(instance)
+            if InterfaceLanguage ~= "English" then return end
+            if not HasTextProperty(instance) then return end
+            pending[instance] = true
+            if not scheduled then
+                scheduled = true
+                task.defer(flush)
+            end
+        end)
+    end
+end)
+
+local Tabs = {
+    Home = Window:AddTab("主页", "house"),
+    Func = Window:AddTab("主要", "zap"),
+    ESP = Window:AddTab("透视", "eye"),
+    Settings = Window:AddTab("设置", "settings"),
+}
+
+-- ============================================================
+--  主页
+-- ============================================================
+do
+    local HomeUserGroup = Tabs.Home:AddGroupbox({ Side = "Left", Name = "用户", IconName = "user", Description = "账号信息" })
+    local HomeSessionGroup = Tabs.Home:AddGroupbox({ Side = "Right", Name = "会话", IconName = "clock", Description = "在线状态" })
+    local homeLP = LocalPlayer
+    local homeSessionStart = tick_()
+    local function homeText(zh, en) return InterfaceLanguage == "English" and en or zh end
+
+    local executorName = (L.profileInfo and L.profileInfo.executor ~= "Unknown") and L.profileInfo.executor or HongXingExecutor or "Unknown"
+    if executorName == "Unknown" then
+        pcall(function() if identifyexecutor then executorName = identifyexecutor() end end)
+    end
+
+    do
+        local avatarFrame = Instance.new("Frame")
+        avatarFrame.BackgroundTransparency = 1
+        avatarFrame.Size = UDim2.new(1, 0, 1, 0)
+        local avatarCard = Instance.new("Frame")
+        avatarCard.AnchorPoint = v2new(0.5, 0)
+        avatarCard.Position = UDim2.new(0.5, 0, 0, 0)
+        avatarCard.Size = UDim2.new(1, 0, 0, 150)
+        avatarCard.BackgroundColor3 = Library.Scheme.DarkColor
+        avatarCard.BackgroundTransparency = 0
+        avatarCard.BorderSizePixel = 0
+        avatarCard.Parent = avatarFrame
+        Instance.new("UICorner", avatarCard).CornerRadius = UDim.new(0, 8)
+        local acs = Instance.new("UIStroke", avatarCard)
+        acs.Color = Library.Scheme.OutlineColor
+        acs.Thickness = 1
+        acs.Transparency = 0.2
+        local avatarImage = Instance.new("ImageLabel")
+        avatarImage.Name = "Avatar"
+        avatarImage.AnchorPoint = v2new(0.5, 0)
+        avatarImage.Position = UDim2.new(0.5, 0, 0, 8)
+        avatarImage.Size = UDim2.new(1, -16, 0, 132)
+        avatarImage.BackgroundTransparency = 1
+        avatarImage.Image = "rbxasset://textures/ui/iconAssetMissing.png"
+        avatarImage.ScaleType = Enum.ScaleType.Crop
+        avatarImage.BorderColor3 = c3rgb(0, 0, 0)
+        avatarImage.Parent = avatarCard
+        if L.profileInfo.avatarUrl ~= "" then avatarImage.Image = L.profileInfo.avatarUrl end
+        Instance.new("UICorner", avatarImage).CornerRadius = UDim.new(0, 8)
+        local avs = Instance.new("UIStroke", avatarImage)
+        avs.Color = Color3.new(0, 0, 0)
+        avs.Thickness = 1
+        avs.Transparency = 0
+        avs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        task.spawn(function()
+            local ok, url = pcall(function()
+                return Players:GetUserThumbnailAsync(homeLP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+            end)
+            if ok and url and url ~= "" and avatarImage and avatarImage.Parent then
+                avatarImage.Image = url
+            end
+        end)
+        HomeUserGroup:AddUIPassthrough("HomeAvatar", { Instance = avatarFrame, Height = 160 })
+    end
+
+    local UsernameLabel = HomeUserGroup:AddLabel(("%s: %s"):format(homeText("用户名", "Username"), homeLP.Name))
+    local UserIdLabel = HomeUserGroup:AddLabel(("%s: %d"):format(homeText("用户ID", "UserId"), homeLP.UserId))
+    local ExecutorLabel = HomeUserGroup:AddLabel(("%s: %s"):format(homeText("执行器", "Executor"), executorName))
+    local SessionTimeLabel = HomeUserGroup:AddLabel(("%s: 00:00:00"):format(homeText("会话时间", "Session Time")))
+    HomeUserGroup:AddButton({ Text = '复制用户名', Func = function() pcall(function() setclipboard(homeLP.Name) end) end })
+    HomeUserGroup:AddButton({ Text = '复制个人资料链接', Func = function()
+        pcall(function() setclipboard(("https://www.roblox.com/users/%d/profile"):format(homeLP.UserId)) end)
+    end })
+
+    local MasterGroup = Tabs.Home:AddGroupbox({ Side = "Left", Name = "信息", IconName = "info", Description = "版本信息" })
+    MasterGroup:AddLabel("师傅：小皮")
+
+    local gameNameCache = (L.profileInfo and L.profileInfo.gameName ~= "Unknown") and L.profileInfo.gameName or "Unknown"
+    pcall(function()
+        local info = MarketplaceService:GetProductInfo(game.PlaceId)
+        if info and info.Name then gameNameCache = info.Name end
+    end)
+
+    local PlayersService = Players
+    local GameNameLabel = HomeSessionGroup:AddLabel(("%s: %s"):format(homeText("游戏", "Game"), gameNameCache))
+    local PlayerCountLabel = HomeSessionGroup:AddLabel(("%s: %d/%d"):format(homeText("玩家", "Players"), #PlayersService:GetPlayers(), PlayersService.MaxPlayers))
+    HomeSessionGroup:AddLabel(("JobId: %s"):format(game.JobId ~= "" and (game.JobId:sub(1, 8) .. "...") or "Studio"))
+    local PingLabel = HomeSessionGroup:AddLabel(("%s: 0 ms"):format(homeText("延迟", "Ping")))
+    HomeSessionGroup:AddButton({ Text = '重新加入服务器', Func = function()
+        pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, homeLP) end)
+    end })
+    HomeSessionGroup:AddButton({ Text = '复制 Job ID', Func = function() pcall(function() setclipboard(game.JobId) end) end })
+
+    L._homeClockThread = task.spawn(function()
+        while true do
+            local elapsed = mathFloor(tick_() - homeSessionStart)
+            local h = mathFloor(elapsed / 3600)
+            local m = mathFloor((elapsed % 3600) / 60)
+            local s = elapsed % 60
+            pcall(function()
+                UsernameLabel:SetText(("%s: %s"):format(homeText("用户名", "Username"), homeLP.Name))
+                UserIdLabel:SetText(("%s: %d"):format(homeText("用户ID", "UserId"), homeLP.UserId))
+                ExecutorLabel:SetText(("%s: %s"):format(homeText("执行器", "Executor"), executorName))
+                GameNameLabel:SetText(("%s: %s"):format(homeText("游戏", "Game"), gameNameCache))
+                SessionTimeLabel:SetText(("%s: %02d:%02d:%02d"):format(homeText("会话时间", "Session Time"), h, m, s))
+                PlayerCountLabel:SetText(("%s: %d/%d"):format(homeText("玩家", "Players"), #PlayersService:GetPlayers(), PlayersService.MaxPlayers))
+                local ok, ping = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+                if ok and ping then
+                    PingLabel:SetText(("%s: %d ms"):format(homeText("延迟", "Ping"), mathFloor(ping)))
+                end
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+local ParrySettings = { Enabled = false, Range = 15, ShowRange = true, WallCheck = true, RangeHeight = -2.7, IgnoreFrenzy = false, IgnoreAbyssLunge = false }
+local parryLastParry = 0
+local parryCooldownEnd = 0
+local parryCooldownValue = 40
+local parryTriggerCooldown = 0.18
+local parryHookedResults = setmetatable({}, {__mode = "k"})
+local parryRangeCircle = nil
+local parryRingParts = {}
+local parryRingBeams = {}
+local parryRingTime = 0
+local PARRY_RING_SEGMENTS = 24
+local parryCachedRemote = nil
+
+local parryRayParams = RaycastParams.new()
+parryRayParams.FilterType = Enum.RaycastFilterType.Exclude
+parryRayParams.IgnoreWater = true
+
+local function buildParryRayFilter(targetChar)
+    local filter = {}
+    local myChar = LocalPlayer.Character
+    if myChar then table.insert(filter, myChar) end
+    if targetChar then table.insert(filter, targetChar) end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character ~= targetChar then
+            table.insert(filter, plr.Character)
+        end
+    end
+    return filter
+end
+
+local function hasLineOfSight(targetChar)
+    if not ParrySettings.WallCheck then return true end
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local tRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot or not tRoot then return false end
+    parryRayParams.FilterDescendantsInstances = buildParryRayFilter(targetChar)
+    local myPos = myRoot.Position
+    local tPos = tRoot.Position
+    local rayPairs = {
+        { myPos + v3new(0, 0.5, 0), tPos + v3new(0, 0.5, 0) },
+        { myPos + v3new(0, 2, 0),   tPos + v3new(0, 2, 0) },
+        { myPos + v3new(0, 0, 0),   tPos + v3new(0, 1.5, 0) },
+    }
+    for _, pair in ipairs(rayPairs) do
+        local origin = pair[1]
+        local dir = pair[2] - origin
+        local result = workspace:Raycast(origin, dir, parryRayParams)
+        if not result then return true end
+    end
+    return false
+end
+
+local function isFrenzyKiller(targetChar)
+    if not targetChar then return false end
+    if targetChar:GetAttribute("Frenzy") == true then return true end
+    local plr = Players:GetPlayerFromCharacter(targetChar)
+    if plr and plr:GetAttribute("Frenzy") == true then return true end
+    return false
+end
+
+local function isAbyssLungeHitbox(part)
+    if not part or not part:IsA("BasePart") then return false end
+    if part.Name:lower():find("slashhitboxdebug") then return true end
+    return false
+end
+
+local function buildParryRangeCircle()
+    if parryRangeCircle then
+        pcall(function() parryRangeCircle:Destroy() end)
+    end
+    parryRingParts = {}
+    parryRingBeams = {}
+    local folder = Instance.new("Folder")
+    folder.Name = "HongXing_AutoParryRange"
+    parryRangeCircle = folder
+    for i = 1, PARRY_RING_SEGMENTS do
+        local part = Instance.new("Part")
+        part.Size = v3new(0.7, 0.7, 0.7)
+        part.Shape = Enum.PartType.Ball
+        part.Material = Enum.Material.Neon
+        part.Anchored = true
+        part.CanCollide = false
+        part.CanTouch = false
+        part.CanQuery = false
+        part.Transparency = 0.1
+        part.Color = c3rgb(100, 255, 140)
+        part.Parent = folder
+        table.insert(parryRingParts, part)
+    end
+    for i = 1, PARRY_RING_SEGMENTS do
+        local j = (i % PARRY_RING_SEGMENTS) + 1
+        local att0 = Instance.new("Attachment")
+        att0.Parent = parryRingParts[i]
+        local att1 = Instance.new("Attachment")
+        att1.Parent = parryRingParts[j]
+        local beam = Instance.new("Beam")
+        beam.Attachment0 = att0
+        beam.Attachment1 = att1
+        beam.Color = ColorSequence.new(c3rgb(100, 255, 140))
+        beam.Width0 = 0.15
+        beam.Width1 = 0.15
+        beam.FaceCamera = true
+        beam.Parent = folder
+        table.insert(parryRingBeams, { beam = beam })
+    end
+    parryRangeCircle.Parent = workspace
+end
+
+local function updateParryRangeCircle(dt)
+    dt = dt or 0.016
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or not ParrySettings.ShowRange or not ParrySettings.Enabled then
+        if parryRangeCircle then
+            for _, p in ipairs(parryRingParts) do p.Transparency = 1 end
+            for _, b in ipairs(parryRingBeams) do b.beam.Enabled = false end
+        end
+        return
+    end
+    if not parryRangeCircle or not parryRangeCircle.Parent then
+        buildParryRangeCircle()
+    end
+    parryRingTime = parryRingTime + dt
+    local rotOffset = parryRingTime * 0.5
+    local floatOffset = math.sin(parryRingTime * 1.0) * 0.3
+    local basePos = root.Position + v3new(0, ParrySettings.RangeHeight, 0) + v3new(0, floatOffset, 0)
+    local radius = ParrySettings.Range
+    for i = 1, PARRY_RING_SEGMENTS do
+        local a = (i / PARRY_RING_SEGMENTS) * 2 * math.pi + rotOffset
+        local dir = v3new(math.cos(a), 0, math.sin(a))
+        parryRingParts[i].Position = basePos + dir * radius
+        parryRingParts[i].Transparency = 0.1
+        parryRingParts[i].Color = c3rgb(100, 255, 140)
+    end
+    for _, b in ipairs(parryRingBeams) do
+        b.beam.Enabled = true
+        b.beam.Color = ColorSequence.new(c3rgb(100, 255, 140))
+    end
+end
+
+RunService.RenderStepped:Connect(function(dt) pcall(function() updateParryRangeCircle(dt) end) end)
+
+local function getParryTool()
+    local char = LocalPlayer.Character
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local containers = {}
+    if char then table.insert(containers, char) end
+    if bp then table.insert(containers, bp) end
+    for _, container in ipairs(containers) do
+        local exact = container:FindFirstChild("Parrying Dagger") or container:FindFirstChild("Parry Dagger")
+        if exact then return exact end
+        for _, child in ipairs(container:GetChildren()) do
+            local n = child.Name:lower()
+            if n:find("parry") or n:find("dagger") then return child end
+        end
+    end
+    return nil
+end
+
+local function getParryRemote()
+    if parryCachedRemote and parryCachedRemote.Parent then return parryCachedRemote end
+    parryCachedRemote = nil
+    pcall(function()
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        local items = remotes and remotes:FindFirstChild("Items")
+        local dagger = items and (items:FindFirstChild("Parrying Dagger") or items:FindFirstChild("Parry Dagger"))
+        if dagger then
+            local r = dagger:FindFirstChild("parry") or dagger:FindFirstChild("Parry")
+            if r then parryCachedRemote = r end
+        end
+    end)
+    if parryCachedRemote then return parryCachedRemote end
+    local tool = getParryTool()
+    if tool then
+        for _, d in ipairs(tool:GetDescendants()) do
+            if (d.Name == "parry" or d.Name == "Parry")
+                and (d:IsA("RemoteEvent") or d:IsA("RemoteFunction")) then
+                parryCachedRemote = d
+                return d
+            end
+        end
+        for _, d in ipairs(tool:GetDescendants()) do
+            if d:IsA("RemoteEvent") or d:IsA("RemoteFunction") then
+                parryCachedRemote = d
+                return d
+            end
+        end
+    end
+    for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+        if d.Name == "parry" and (d:IsA("RemoteEvent") or d:IsA("RemoteFunction")) then
+            parryCachedRemote = d
+            return d
+        end
+    end
+    return nil
+end
+
+local function hookParryResult()
+    local candidates = {}
+    local tool = getParryTool()
+    if tool then
+        local r = tool:FindFirstChild("parryResult") or tool:FindFirstChild("ParryResult")
+        if r then table.insert(candidates, r) end
+    end
+    pcall(function()
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        local items = remotes and remotes:FindFirstChild("Items")
+        local dagger = items and (items:FindFirstChild("Parrying Dagger") or items:FindFirstChild("Parry Dagger"))
+        if dagger then
+            local r = dagger:FindFirstChild("parryResult") or dagger:FindFirstChild("ParryResult")
+            if r then table.insert(candidates, r) end
+        end
+    end)
+    local r2 = ReplicatedStorage:FindFirstChild("parryResult", true) or ReplicatedStorage:FindFirstChild("ParryResult", true)
+    if r2 then table.insert(candidates, r2) end
+    for _, result in ipairs(candidates) do
+        if result:IsA("RemoteEvent") and not parryHookedResults[result] then
+            parryHookedResults[result] = true
+            result.OnClientEvent:Connect(function(a, b)
+                local cd
+                if type(a) == "number" then cd = a
+                elseif type(b) == "number" then cd = b end
+                if not cd then
+                    local success = (a == true) or (type(b) == "boolean" and b == true)
+                    cd = success and 90 or 60
+                end
+                parryCooldownEnd = tick_() + cd
+            end)
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        if ParrySettings.Enabled then pcall(hookParryResult) end
+        task.wait(2)
+    end
+end)
+
+local function equipParryTool()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local tool = getParryTool()
+    if not tool then return nil end
+    if tool.Parent ~= char then
+        pcall(function() tool.Parent = char end)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function() hum:EquipTool(tool) end) end
+    end
+    return tool
+end
+
+local function doParry()
+    local now = tick_()
+    if now - parryLastParry < parryTriggerCooldown then return end
+    if now < parryCooldownEnd then return end
+    local tool = equipParryTool()
+    if not tool then return end
+    parryLastParry = now
+    parryCooldownEnd = tick_() + parryCooldownValue
+    local remote = getParryRemote()
+    if remote then
+        pcall(function()
+            if remote:IsA("RemoteEvent") then remote:FireServer()
+            elseif remote:IsA("RemoteFunction") then remote:InvokeServer() end
+        end)
+    end
+    pcall(function() tool:Activate() end)
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.ButtonL2, false, game)
+        task.wait(0.04)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.ButtonL2, false, game)
+    end)
+    pcall(function()
+        local cam = workspace.CurrentCamera
+        local x = cam and (cam.ViewportSize.X / 2) or 500
+        local y = cam and (cam.ViewportSize.Y / 2) or 500
+        VirtualInputManager:SendMouseButtonEvent(x, y, 1, true, game, 1)
+        task.wait(0.08)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 1, false, game, 1)
+    end)
+end
+
+local function isKiller(plr)
+    if plr == LocalPlayer then return false end
+    if plr:GetAttribute("Role") == "Killer" or plr:GetAttribute("IsKiller") == true then return true end
+    local char = plr.Character
+    if char and (char:GetAttribute("Role") == "Killer" or char:GetAttribute("IsKiller") == true) then return true end
+    local team = plr.Team
+    if team then
+        local t = team.Name:lower()
+        if t:find("killer") or t:find("slasher") or t:find("hunter") then return true end
+    end
+    return false
+end
+
+local function canParry()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if char:GetAttribute("Knocked") == true then return false end
+    if char:GetAttribute("IsHooked") == true then return false end
+    if char:GetAttribute("IsCarried") == true then return false end
+    return true
+end
+
+local function inParryRange(targetChar)
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return false end
+    local tRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+    if not tRoot then return false end
+    return (tRoot.Position - myRoot.Position).Magnitude <= ParrySettings.Range
+end
+
+local function tryParry(targetChar)
+    if not ParrySettings.Enabled then return end
+    if targetChar and ParrySettings.IgnoreFrenzy and isFrenzyKiller(targetChar) then return end
+    if not canParry() then return end
+    if tick_() < parryCooldownEnd then return end
+    if targetChar then
+        if not inParryRange(targetChar) then return end
+        if not hasLineOfSight(targetChar) then return end
+    end
+    doParry()
+end
+
+local parryMonitored = setmetatable({}, {__mode = "k"})
+local function monitorParryCharacter(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    local function hookAnimator(animator)
+        if not animator or parryMonitored[animator] then return end
+        parryMonitored[animator] = true
+        animator.AnimationPlayed:Connect(function(track)
+            if not ParrySettings.Enabled then return end
+            local prio = track.Priority
+            if not track.Looped and (prio == Enum.AnimationPriority.Action
+                or prio == Enum.AnimationPriority.Action2
+                or prio == Enum.AnimationPriority.Action3
+                or prio == Enum.AnimationPriority.Action4) then
+                tryParry(char)
+            end
+        end)
+    end
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if animator then hookAnimator(animator) end
+    hum.ChildAdded:Connect(function(c) if c:IsA("Animator") then hookAnimator(c) end end)
+end
+
+workspace.DescendantAdded:Connect(function(inst)
+    if not ParrySettings.Enabled then return end
+    if not inst:IsA("BasePart") then return end
+    if ParrySettings.IgnoreAbyssLunge and isAbyssLungeHitbox(inst) then return end
+    local n = inst.Name:lower()
+    if n:find("hitbox") or n:find("collider") or n:find("swing") or n:find("slash") or n:find("attack") then
+        local myChar = LocalPlayer.Character
+        if myChar and inst:IsDescendantOf(myChar) then return end
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if myRoot and (inst.Position - myRoot.Position).Magnitude <= ParrySettings.Range then
+            local foundKiller = nil
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if isKiller(plr) and plr.Character and inst:IsDescendantOf(plr.Character) then
+                    foundKiller = plr.Character
+                    break
+                end
+            end
+            if foundKiller then
+                if hasLineOfSight(foundKiller) then tryParry(nil) end
+            else
+                tryParry(nil)
+            end
+        end
+    end
+end)
+
+local function hookParryPlayer(plr)
+    if plr == LocalPlayer then return end
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(0.8)
+        if isKiller(plr) then monitorParryCharacter(char) end
+    end)
+    if plr.Character and isKiller(plr) then monitorParryCharacter(plr.Character) end
+end
+for _, plr in ipairs(Players:GetPlayers()) do hookParryPlayer(plr) end
+Players.PlayerAdded:Connect(hookParryPlayer)
+
+task.spawn(function()
+    while true do
+        task.wait(0.03)
+        if ParrySettings.Enabled and canParry() and tick_() >= parryCooldownEnd then
+            local myChar = LocalPlayer.Character
+            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if myRoot then
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if isKiller(plr) and plr.Character then
+                        local kRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if kRoot and (kRoot.Position - myRoot.Position).Magnitude <= ParrySettings.Range then
+                            if not hasLineOfSight(plr.Character) then continue end
+                            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                            local animator = hum and hum:FindFirstChildOfClass("Animator")
+                            if animator then
+                                for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                    local prio = track.Priority
+                                    if not track.Looped and (prio == Enum.AnimationPriority.Action
+                                        or prio == Enum.AnimationPriority.Action2
+                                        or prio == Enum.AnimationPriority.Action3
+                                        or prio == Enum.AnimationPriority.Action4)
+                                        and track.TimePosition < 0.5 then
+                                        if not (ParrySettings.IgnoreFrenzy and isFrenzyKiller(plr.Character)) then
+                                        doParry()
+                                        end
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        local cd
+        for k, v in pairs(LocalPlayer:GetAttributes()) do
+            local kl = k:lower()
+            if (kl:find("parry") or kl:find("dagger")) and (kl:find("cooldown") or kl:find("cd"))
+                and type(v) == "number" and v > 0 then
+                cd = v
+                break
+            end
+        end
+        if not cd then
+            local items = ReplicatedStorage:FindFirstChild("Items")
+            local dagger = items and (items:FindFirstChild("Parrying Dagger") or items:FindFirstChild("Parry Dagger"))
+            if dagger then
+                for _, d in ipairs(dagger:GetDescendants()) do
+                    if d:IsA("Decal") then
+                        local desc = d:GetAttribute("desc")
+                        if type(desc) == "string" then
+                            local sec = desc:match("(%d+)%s*second")
+                            if sec then cd = tonumber(sec) break end
+                        end
+                    end
+                end
+            end
+        end
+        if cd and cd > 0 then parryCooldownValue = cd end
+        task.wait(5)
+    end
+end)
+
+-- ============================================================
+--  修机
+-- ============================================================
+local Repair = { Enabled = false, Range = 8, CurrentGen = nil, CurrentPoint = nil }
+
+local function getRepairRemote()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then return nil end
+    local gen = remotes:FindFirstChild("Generator")
+    if not gen then return nil end
+    return gen:FindFirstChild("RepairEvent")
+end
+
+local function isCompleted(gen)
+    local c = gen:GetAttribute("Completed")
+    if c == true or c == "true" then return true end
+    local v = gen:FindFirstChild("Completed")
+    if v and v:IsA("BoolValue") then return v.Value end
+    return false
+end
+
+local function findPoint(gen)
+    for _, c in ipairs(gen:GetDescendants()) do
+        local n = c.Name:lower()
+        if n:find("generatorpoint") and c:IsA("BasePart") then return c end
+    end
+    for _, c in ipairs(gen:GetDescendants()) do
+        if c:IsA("BasePart") and c.Name:lower():find("point") then return c end
+    end
+    return gen.PrimaryPart or gen:FindFirstChildWhichIsA("BasePart")
+end
+
+local function getAllGens()
+    local list = {}
+    local seen = {}
+    local function add(gen)
+        if gen and gen:IsA("Model") and not seen[gen] then
+            seen[gen] = true
+            if not isCompleted(gen) then list[#list + 1] = gen end
+        end
+    end
+    local map = workspace:FindFirstChild("Map")
+    if map then
+        for _, name in ipairs({"Generators", "Gens", "Generator"}) do
+            local folder = map:FindFirstChild(name)
+            if folder then
+                for _, gen in ipairs(folder:GetChildren()) do
+                    if gen.Name:lower():find("generat") then add(gen) end
+                end
+            end
+        end
+        local obj = map:FindFirstChild("Objective")
+        if obj then
+            for _, name in ipairs({"Generators", "Gens"}) do
+                local sub = obj:FindFirstChild(name)
+                if sub then
+                    for _, gen in ipairs(sub:GetChildren()) do
+                        if gen.Name:lower():find("generat") then add(gen) end
+                    end
+                end
+            end
+        end
+    end
+    local wsGen = workspace:FindFirstChild("Generators")
+    if wsGen then
+        for _, gen in ipairs(wsGen:GetChildren()) do
+            if gen.Name:lower():find("generat") then add(gen) end
+        end
+    end
+    if #list == 0 then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj.Name:lower():find("generat") then add(obj) end
+        end
+    end
+    return list
+end
+
+local function findNearestGen()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local best, bestDist = nil, math.huge
+    for _, gen in ipairs(getAllGens()) do
+        local part = gen.PrimaryPart or gen:FindFirstChildWhichIsA("BasePart")
+        if part then
+            local d = (part.Position - root.Position).Magnitude
+            if d < bestDist then bestDist = d best = gen end
+        end
+    end
+    return best
+end
+
+local function canRepairAct()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if char:GetAttribute("Knocked") == true then return false end
+    if char:GetAttribute("IsHooked") == true then return false end
+    if char:GetAttribute("IsCarried") == true then return false end
+    return true
+end
+
+local function stopRepair()
+    if not Repair.CurrentPoint then return end
+    local remote = getRepairRemote()
+    if remote then pcall(function() remote:FireServer(Repair.CurrentPoint, false) end) end
+end
+
+task.spawn(function()
+    local lastSearch = 0
+    while true do
+        task.wait(0.25)
+        if not Repair.Enabled then
+            Repair.CurrentGen = nil Repair.CurrentPoint = nil continue
+        end
+        if not canRepairAct() then continue end
+        if Repair.CurrentGen and (not Repair.CurrentGen.Parent or isCompleted(Repair.CurrentGen)) then
+            stopRepair()
+            Repair.CurrentGen = nil Repair.CurrentPoint = nil
+        end
+        if not Repair.CurrentGen then
+            local now = tick()
+            if now - lastSearch < 1 then continue end
+            lastSearch = now
+            local gen = findNearestGen()
+            if not gen then continue end
+            Repair.CurrentGen = gen
+            Repair.CurrentPoint = findPoint(gen)
+        end
+        if not Repair.CurrentPoint or not Repair.CurrentPoint.Parent then
+            Repair.CurrentPoint = findPoint(Repair.CurrentGen)
+            if not Repair.CurrentPoint then continue end
+        end
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then continue end
+        local dist = (Repair.CurrentPoint.Position - root.Position).Magnitude
+        if dist > Repair.Range then continue end
+        local remote = getRepairRemote()
+        if remote then pcall(function() remote:FireServer(Repair.CurrentPoint, true) end) end
+    end
+end)
+
+local PerfectSkillCheck = { Enabled = false, Connection = nil, Instant = true, Mode = "完美点击", HitRate = 100 }
+local PERFECT_START = 104
+local PERFECT_END = 114
+local CHECK_INTERVAL = 0.08
+local lastCheckTime = 0
+local lastGoalRot = nil
+local lastClickedGoal = nil
+local lastClickTime = 0
+
+local function getSkillCheckGui()
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if not pg then return nil, false end
+    local gui1 = pg:FindFirstChild("SkillCheckPromptGui")
+    if gui1 and gui1:IsA("ScreenGui") and gui1.Enabled then
+        local check = gui1:FindFirstChild("Check")
+        if check and check.Visible then return gui1, false end
+    end
+    local gui2 = pg:FindFirstChild("SkillCheckPromptGui-con")
+    if gui2 and gui2:IsA("ScreenGui") and gui2.Enabled then
+        local check = gui2:FindFirstChild("Check")
+        if check and check.Visible then return gui2, true end
+    end
+    return nil, false
+end
+
+local function clickSkillCheck(isConsole)
+    task.spawn(function()
+        pcall(function()
+            if isConsole then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.ButtonL1, false, game)
+                task.wait(0.02)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.ButtonL1, false, game)
+            else
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.02)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            end
+        end)
+        pcall(function()
+            local gui = getSkillCheckGui()
+            if gui then
+                for _, d in ipairs(gui:GetDescendants()) do
+                    if d:IsA("GuiButton") then
+                        if typeof(firesignal) == "function" then
+                            pcall(function() firesignal(d.MouseButton1Click) end)
+                            pcall(function() firesignal(d.Activated) end)
+                            pcall(function() firesignal(d.MouseButton1Down) end)
+                        end
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+local function isInPerfectRange(lineRot, goalRot)
+    local line = lineRot % 360
+    local goal = goalRot % 360
+    if line < 0 then line = line + 360 end
+    if goal < 0 then goal = goal + 360 end
+    local startRot = (goal + PERFECT_START) % 360
+    local endRot = (goal + PERFECT_END) % 360
+    if startRot > endRot then
+        return line >= startRot or line <= endRot
+    else
+        return line >= startRot and line <= endRot
+    end
+end
+
+local function startPerfectSkillCheck()
+    if PerfectSkillCheck.Connection then return end
+    PerfectSkillCheck.Enabled = true
+    PerfectSkillCheck.Connection = RunService.RenderStepped:Connect(function()
+        if not PerfectSkillCheck.Enabled then return end
+        if not LocalPlayer.Character then return end
+        local now = tick()
+        if now - lastCheckTime < CHECK_INTERVAL then return end
+        lastCheckTime = now
+        local gui, isConsole = getSkillCheckGui()
+        if not gui then lastGoalRot = nil lastClickedGoal = nil return end
+        local check = gui:FindFirstChild("Check")
+        if not check then return end
+        local line = check:FindFirstChild("Line")
+        local goal = check:FindFirstChild("Goal")
+        if not line or not goal then return end
+        local goalRot = goal.Rotation
+        local lineRot = line.Rotation
+        if lastGoalRot ~= goalRot then
+            lastGoalRot = goalRot
+            lastClickedGoal = nil
+        end
+        if PerfectSkillCheck.Instant then
+            if lastClickedGoal ~= goalRot or (now - lastClickTime > 0.3) then
+                lastClickedGoal = goalRot
+                lastClickTime = now
+                clickSkillCheck(isConsole)
+            end
+            return
+        end
+        if PerfectSkillCheck.HitRate and PerfectSkillCheck.HitRate < 100 then
+            if math.random(1, 100) > PerfectSkillCheck.HitRate then return end
+        end
+        if PerfectSkillCheck.Mode == "完美点击" then
+            if isInPerfectRange(lineRot, goalRot) then
+                if lastClickedGoal ~= goalRot or (now - lastClickTime > 0.3) then
+                    lastClickedGoal = goalRot
+                    lastClickTime = now
+                    clickSkillCheck(isConsole)
+                end
+            end
+        else
+            if lastClickedGoal ~= goalRot or (now - lastClickTime > 0.3) then
+                lastClickedGoal = goalRot
+                lastClickTime = now
+                clickSkillCheck(isConsole)
+            end
+        end
+    end)
+end
+
+local function stopPerfectSkillCheck()
+    PerfectSkillCheck.Enabled = false
+    if PerfectSkillCheck.Connection then
+        PerfectSkillCheck.Connection:Disconnect()
+        PerfectSkillCheck.Connection = nil
+    end
+    lastGoalRot = nil lastClickedGoal = nil
+end
+
+local RepairMode = "静默"
+
+local FuncAutoGroup = Tabs.Func:AddGroupbox({
+    Side = "Left", Name = "自动功能", IconName = "zap", Description = "自动技能",
+})
+
+FuncAutoGroup:AddToggle('ParryAutoToggle', {
+    Text = '自动招架', Default = false,
+    Callback = function(v)
+        ParrySettings.Enabled = v
+        if v then pcall(hookParryResult) else parryCachedRemote = nil end
+        pcall(updateParryRangeCircle)
+    end,
+})
+
+FuncAutoGroup:AddSlider('ParryRangeSlider', {
+    Text = '招架范围', Default = 12, Min = 5, Max = 15, Rounding = 0, Suffix = " 格",
+    Callback = function(v) ParrySettings.Range = v pcall(updateParryRangeCircle) end,
+})
+
+FuncAutoGroup:AddToggle('ParryWallCheckToggle', {
+    Text = '墙体检测', Default = true,
+    Callback = function(v) ParrySettings.WallCheck = v end,
+})
+
+FuncAutoGroup:AddToggle('ParryShowRangeToggle', {
+    Text = '显示范围圈', Default = true,
+    Callback = function(v) ParrySettings.ShowRange = v pcall(updateParryRangeCircle) end,
+})
+
+FuncAutoGroup:AddToggle('ParryIgnoreFrenzyToggle', {
+    Text = '忽略追击', Default = false,
+    Callback = function(v) ParrySettings.IgnoreFrenzy = v end,
+})
+
+FuncAutoGroup:AddToggle('ParryIgnoreAbyssLungeToggle', {
+    Text = '忽略技能横扫', Default = false,
+    Callback = function(v) ParrySettings.IgnoreAbyssLunge = v end,
+})
+
+FuncAutoGroup:AddDivider()
+
+FuncAutoGroup:AddToggle('RepairAutoToggle', {
+    Text = '自动修机', Default = false,
+    Callback = function(v)
+        Repair.Enabled = v
+        if not v then
+            stopRepair()
+            stopPerfectSkillCheck()
+            Repair.CurrentGen = nil Repair.CurrentPoint = nil
+        else
+            if RepairMode == "完美点击" then
+                PerfectSkillCheck.Instant = true
+                PerfectSkillCheck.Mode = "完美点击"
+                PerfectSkillCheck.HitRate = 100
+                startPerfectSkillCheck()
+            end
+        end
+    end,
+})
+
+FuncAutoGroup:AddDropdown('RepairModeDropdown', {
+    Text = '修机模式', Values = { "静默", "完美点击" }, Default = 1, Multi = false,
+    Callback = function(value)
+        RepairMode = value
+        if Repair.Enabled then
+            if value == "静默" then
+                stopPerfectSkillCheck()
+            else
+                PerfectSkillCheck.Instant = true
+                PerfectSkillCheck.Mode = "完美点击"
+                PerfectSkillCheck.HitRate = 100
+                startPerfectSkillCheck()
+            end
+        end
+    end,
+})
+
+FuncAutoGroup:AddSlider('RepairRangeSlider', {
+    Text = '修机距离', Default = 8, Min = 3, Max = 20, Rounding = 0, Suffix = " 格",
+    Callback = function(v) Repair.Range = v end,
+})
+
+local ModifyGroup = Tabs.Func:AddGroupbox({
+    Side = "Right", Name = "修改", IconName = "sliders", Description = "本地修改",
+})
+
+local VaultSpeedValue = 1
+
+ModifyGroup:AddSlider('VaultSpeedSlider', {
+    Text = '翻越速度倍率', Default = 1, Min = 1, Max = 10, Rounding = 1, Suffix = "x",
+    Callback = function(v)
+        VaultSpeedValue = v
+        local char = LocalPlayer.Character
+        if char then pcall(function() char:SetAttribute("vaultspeed", v) end) end
+    end,
+})
+
+L.onCharacterAdded(function(char)
+    task.wait(0.5)
+    if VaultSpeedValue and VaultSpeedValue > 1 then
+        pcall(function() char:SetAttribute("vaultspeed", VaultSpeedValue) end)
+    end
+end)
+
+ModifyGroup:AddDivider()
+
+ModifyGroup:AddButton({ Text = '触发增益', Func = function()
+    local remote = getRepairRemote()
+    if not remote then L.notify("未找到修机远程", 3) return end
+    local gen = findNearestGen()
+    if not gen then L.notify("附近没有发电机", 3) return end
+    local points = {}
+    for _, c in ipairs(gen:GetDescendants()) do
+        local n = c.Name:lower()
+        if n:find("generatorpoint") or (n:find("point") and c:IsA("BasePart")) then
+            table.insert(points, c)
+        end
+    end
+    if #points == 0 then L.notify("未找到发电机修理点", 3) return end
+    for _, p in ipairs(points) do
+        pcall(function() remote:FireServer(p, true) end)
+        task.wait(0.05)
+    end
+    L.notify("已触发发电机增益", 3)
+end })
+
+ModifyGroup:AddButton({ Text = '多人修机造假', Func = function()
+    local remote = getRepairRemote()
+    if not remote then L.notify("未找到修机远程", 3) return end
+    local gen = findNearestGen()
+    if not gen then L.notify("附近没有发电机", 3) return end
+    local points = {}
+    for _, c in ipairs(gen:GetDescendants()) do
+        local n = c.Name:lower()
+        if n:find("generatorpoint") or (n:find("point") and c:IsA("BasePart")) then
+            table.insert(points, c)
+        end
+    end
+    if #points == 0 then L.notify("未找到修理点", 3) return end
+    local p = points[1]
+    pcall(function() remote:FireServer(p, true) end)
+    task.wait(0.1)
+    pcall(function() remote:FireServer(p, false) end)
+    L.notify("已触发", 3)
+end })
+
+local ESP_TYPES = {
+    Generator = { name = "发电机", color = c3rgb(0, 200, 255) },
+    Pallet    = { name = "板子",   color = c3rgb(255, 165, 0) },
+    Hook      = { name = "钩子",   color = c3rgb(255, 105, 180) },
+    Vault     = { name = "窗口",   color = c3rgb(180, 180, 180) },
+    Gate      = { name = "大门",   color = c3rgb(255, 220, 0) },
+    SCP       = { name = "SCP",    color = c3rgb(150, 0, 255) },
+}
+
+for _, t in pairs(ESP_TYPES) do
+    t.highlightColor = Color3.new(
+        t.color.R + (1 - t.color.R) * 0.5,
+        t.color.G + (1 - t.color.G) * 0.5,
+        t.color.B + (1 - t.color.B) * 0.5
+    )
+end
+
+local espEnabled = {
+    Generator = false, Pallet = false, Hook = false,
+    Vault = false, Gate = false, SCP = false,
+}
+
+local espTagHolder = nil
+local function getESPTagHolder()
+    if espTagHolder and espTagHolder.Parent then return espTagHolder end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return nil end
+    espTagHolder = pg:FindFirstChild("HongXingMapESPTags")
+    if not espTagHolder then
+        espTagHolder = Instance.new("ScreenGui")
+        espTagHolder.Name = "HongXingMapESPTags"
+        espTagHolder.ResetOnSpawn = false
+        espTagHolder.IgnoreGuiInset = true
+        espTagHolder.DisplayOrder = 500
+        espTagHolder.Parent = pg
+    end
+    return espTagHolder
+end
+
+local espEffects = {}
+
+local function removeESPEffects(obj)
+    local e = espEffects[obj]
+    if e then
+        if e.tag then pcall(function() e.tag:Destroy() end) end
+        if e.highlight then pcall(function() e.highlight:Destroy() end) end
+        espEffects[obj] = nil
+    end
+end
+
+local function collectESPTargets()
+    local result = { Generator = {}, Pallet = {}, Hook = {}, Vault = {}, Gate = {}, SCP = {} }
+    local anyEnabled = false
+    for _, v in pairs(espEnabled) do if v then anyEnabled = true break end end
+    if not anyEnabled then return result end
+    local map = workspace:FindFirstChild("Map") or workspace
+    for _, obj in ipairs(map:GetDescendants()) do
+        if obj:IsA("Model") then
+            local hasPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if hasPart then
+                local n = obj.Name:lower()
+                if n:find("generat") then table.insert(result.Generator, obj)
+                elseif n:find("pallet") then table.insert(result.Pallet, obj)
+                elseif n:find("hook") then table.insert(result.Hook, obj)
+                elseif n:find("vault") or n:find("window") then table.insert(result.Vault, obj)
+                elseif n:find("gate") or n:find("door") then table.insert(result.Gate, obj)
+                elseif n:find("scp") then table.insert(result.SCP, obj)
+                end
+            end
+        end
+    end
+    return result
+end
+
+local function createESPHighlight(model, color)
+    local hl = Instance.new("Highlight")
+    hl.FillColor = color
+    hl.FillTransparency = 0.7
+    hl.OutlineColor = color
+    hl.OutlineTransparency = 0.7
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = model
+    hl.Parent = model
+    return hl
+end
+
+local function createESPTag(model, typeKey)
+    local config = ESP_TYPES[typeKey]
+    local attachPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not attachPart then return nil, nil end
+    local tag = Instance.new("BillboardGui")
+    tag.Size = UDim2.new(0, 200, 0, 90)
+    tag.StudsOffset = v3new(0, 3, 0)
+    tag.AlwaysOnTop = true
+    tag.Adornee = attachPart
+    tag.Parent = getESPTagHolder() or model
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = config.name
+    label.TextColor3 = config.highlightColor
+    label.TextTransparency = 0.3
+    label.TextWrap = true
+    label.TextWrapped = true
+    label.RichText = true
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextStrokeTransparency = 0.5
+    label.TextStrokeColor3 = c3rgb(0, 0, 0)
+    label.Parent = tag
+    return tag, label
+end
+
+local function espAttrNum(obj, names)
+    for _, n in ipairs(names) do
+        local a = obj:GetAttribute(n)
+        if type(a) == "number" then return a end
+        local v = obj:FindFirstChild(n)
+        if v and v:IsA("ValueBase") and type(v.Value) == "number" then return v.Value end
+    end
+    return nil
+end
+
+local function espToPct(n)
+    if type(n) ~= "number" then return 0 end
+    if n > 0 and n <= 1.01 then return mathFloor(n * 100) end
+    return mathFloor(n)
+end
+
+local function getGenProgress(obj)
+    return espToPct(espAttrNum(obj, { "RepairProgress", "Progress", "repairProgress" }))
+end
+
+local function getGenRepairCount(obj)
+    local n = espAttrNum(obj, { "PlayersRepairingCount", "RepairingCount", "Repairing", "repairingCount" })
+    return mathFloor(n or 0)
+end
+
+local function getGateProgress(obj)
+    local n = espAttrNum(obj, { "ActivationProgress", "Progress", "OpenedProgress" })
+    if n == nil then
+        local lever = obj:FindFirstChild("ExitLever", true) or obj:FindFirstChild("ExitLever")
+        if lever then
+            n = espAttrNum(lever, { "ActivationProgress", "Progress" })
+            if n == nil then
+                local main = lever:FindFirstChild("Main")
+                if main then n = espAttrNum(main, { "ActivationProgress", "Progress" }) end
+            end
+        end
+    end
+    return espToPct(n)
+end
+
+local HOOK_OCCUPIED_COLOR = c3rgb(255, 60, 60)
+
+local function isHookOccupied(hook)
+    local pos = nil
+    if hook:IsA("BasePart") then
+        pos = hook.Position
+    else
+        local p = hook.PrimaryPart or hook:FindFirstChildWhichIsA("BasePart")
+        if p then pos = p.Position end
+    end
+    if not pos then return false end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local ch = plr.Character
+            local hooked = ch:GetAttribute("IsHooked")
+            if hooked == nil then
+                local v = ch:FindFirstChild("IsHooked")
+                if v and v:IsA("ValueBase") then hooked = v.Value end
+            end
+            if hooked == true then
+                local hrp = ch:FindFirstChild("HumanoidRootPart")
+                    or ch:FindFirstChild("UpperTorso")
+                    or ch:FindFirstChild("Torso")
+                if hrp and (hrp.Position - pos).Magnitude <= 15 then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function updateESPLabels()
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    local myPos = myRoot.Position
+    for obj, e in pairs(espEffects) do
+        if not obj.Parent then removeESPEffects(obj) continue end
+        if e.label and e.tag and e.tag.Adornee and e.tag.Adornee.Parent then
+            local dist = (e.tag.Adornee.Position - myPos).Magnitude
+            local distStr = strFormat('<font size="11">[%d]</font>', mathFloor(dist))
+            local baseName = ESP_TYPES[e.typeKey].name
+            local baseColor = ESP_TYPES[e.typeKey].highlightColor
+            local labelColor = baseColor
+            local text
+
+            if e.typeKey == "Generator" then
+                text = strFormat('修机人数: %d\n修机进度: %d%%\n%s\n%s',
+                    getGenRepairCount(obj), getGenProgress(obj), baseName, distStr)
+            elseif e.typeKey == "Gate" then
+                text = strFormat('开门进度: %d%%\n%s\n%s',
+                    getGateProgress(obj), baseName, distStr)
+            elseif e.typeKey == "Hook" then
+                if isHookOccupied(obj) then
+                    labelColor = HOOK_OCCUPIED_COLOR
+                    text = strFormat('<font color="#ff3c3c">%s\n已被挂</font>\n%s', baseName, distStr)
+                    if e.highlight and e.highlight.Parent then
+                        e.highlight.FillColor = HOOK_OCCUPIED_COLOR
+                        e.highlight.OutlineColor = HOOK_OCCUPIED_COLOR
+                    end
+                else
+                    text = strFormat('%s\n%s', baseName, distStr)
+                    if e.highlight and e.highlight.Parent then
+                        e.highlight.FillColor = baseColor
+                        e.highlight.OutlineColor = baseColor
+                    end
+                end
+            else
+                text = strFormat('%s\n%s', baseName, distStr)
+            end
+
+            if e.label.Text ~= text then e.label.Text = text end
+            if e.label.TextColor3 ~= labelColor then e.label.TextColor3 = labelColor end
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        pcall(function()
+            local targets = collectESPTargets()
+            local allTargets = {}
+            for typeKey, list in pairs(targets) do
+                if espEnabled[typeKey] then
+                    for _, obj in ipairs(list) do allTargets[obj] = typeKey end
+                end
+            end
+            for obj in pairs(espEffects) do
+                if not allTargets[obj] then removeESPEffects(obj) end
+            end
+            for obj, typeKey in pairs(allTargets) do
+                if not espEffects[obj] then
+                    local config = ESP_TYPES[typeKey]
+                    local tag, label = createESPTag(obj, typeKey)
+                    local hl = createESPHighlight(obj, config.highlightColor)
+                    espEffects[obj] = { tag = tag, label = label, highlight = hl, typeKey = typeKey }
+                end
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        pcall(updateESPLabels)
+    end
+end)
+
+local ESPGroup = Tabs.ESP:AddGroupbox({
+    Side = "Left", Name = "地图透视", IconName = "eye", Description = "地图物体高亮",
+})
+
+local espOrder = { "Generator", "Pallet", "Hook", "Vault", "Gate", "SCP" }
+for _, typeKey in ipairs(espOrder) do
+    local config = ESP_TYPES[typeKey]
+    ESPGroup:AddToggle("ESP_" .. typeKey, {
+        Text = "透视" .. config.name,
+        Default = false,
+        Callback = function(v) espEnabled[typeKey] = v end,
+    })
+end
+
+local PlayerESPSettings = {
+    KillerHighlight = false,
+    KillerName = false,
+    KillerDistance = false,
+    KillerSelected = false,
+    SurvivorHighlight = false,
+    SurvivorName = false,
+    SurvivorDistance = false,
+    SurvivorHealth = false,
+    SurvivorHooks = false,
+}
+
+local KILLER_COLOR = c3rgb(255, 40, 40)
+local SURVIVOR_COLOR = c3rgb(40, 255, 90)
+
+local playerESPTagHolder = nil
+local playerESPHolder = nil
+local playerESPEffects = {}
+
+local function getPlayerESPHolder()
+    if playerESPHolder and playerESPHolder.Parent then return playerESPHolder end
+    playerESPHolder = workspace:FindFirstChild("HongXingPlayerESP")
+    if not playerESPHolder then
+        playerESPHolder = Instance.new("Folder")
+        playerESPHolder.Name = "HongXingPlayerESP"
+        playerESPHolder.Parent = workspace
+    end
+    return playerESPHolder
+end
+
+local function getPlayerESPTagHolder()
+    if playerESPTagHolder and playerESPTagHolder.Parent then return playerESPTagHolder end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return nil end
+    playerESPTagHolder = pg:FindFirstChild("HongXingPlayerESPTags")
+    if not playerESPTagHolder then
+        playerESPTagHolder = Instance.new("ScreenGui")
+        playerESPTagHolder.Name = "HongXingPlayerESPTags"
+        playerESPTagHolder.ResetOnSpawn = false
+        playerESPTagHolder.IgnoreGuiInset = true
+        playerESPTagHolder.DisplayOrder = 500
+        playerESPTagHolder.Parent = pg
+    end
+    return playerESPTagHolder
+end
+
+local function playerESPIsKiller(plr)
+    if plr == LocalPlayer then return false end
+    if plr:GetAttribute("Role") == "Killer" or plr:GetAttribute("IsKiller") == true then return true end
+    local ch = plr.Character
+    if ch and (ch:GetAttribute("Role") == "Killer" or ch:GetAttribute("IsKiller") == true) then return true end
+    local team = plr.Team
+    if team then
+        local t = team.Name:lower()
+        if t:find("killer") or t:find("slasher") or t:find("hunter") or t:find("monster") then return true end
+    end
+    return false
+end
+
+local function playerESPGetHealthState(plr)
+    local ch = plr.Character
+    if not ch then return "无" end
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+    if not hum then return "无" end
+    if ch:GetAttribute("IsHooked") == true then return "挂钩中" end
+    if ch:GetAttribute("Knocked") == true then return "倒地" end
+    if ch:GetAttribute("IsCarried") == true then return "被扛起" end
+    if hum.Health < hum.MaxHealth then return "受伤" end
+    return "健康"
+end
+
+local function playerESPGetHookCount(plr)
+    local ch = plr.Character
+    if ch then
+        local c = ch:GetAttribute("HookCount")
+        if c ~= nil then return tonumber(c) or 0 end
+        local v = ch:FindFirstChild("HookCount")
+        if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then return tonumber(v.Value) or 0 end
+    end
+    local ws = workspace:FindFirstChild("Players")
+    if ws then
+        local folder = ws:FindFirstChild(plr.Name)
+        if folder then
+            local c = folder:GetAttribute("HookCount")
+            if c ~= nil then return tonumber(c) or 0 end
+            local v = folder:FindFirstChild("HookCount")
+            if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then return tonumber(v.Value) or 0 end
+        end
+    end
+    return 0
+end
+
+local function playerESPGetSelectedKiller(plr)
+    local ch = plr.Character
+    if ch then
+        local c = ch:GetAttribute("SelectedKiller")
+        if c ~= nil and c ~= "" then return tostring(c) end
+        local v = ch:FindFirstChild("SelectedKiller")
+        if v and v:IsA("StringValue") then
+            local val = tostring(v.Value)
+            if val ~= "" and val ~= "None" then return val end
+        end
+    end
+    local c2 = plr:GetAttribute("SelectedKiller")
+    if c2 ~= nil and c2 ~= "" then return tostring(c2) end
+    local v2 = plr:FindFirstChild("SelectedKiller")
+    if v2 and v2:IsA("StringValue") then
+        local val = tostring(v2.Value)
+        if val ~= "" and val ~= "None" then return val end
+    end
+    return "无"
+end
+
+local function getPlayerESPTextSize(dist)
+    if dist < 25 then return 17
+    elseif dist < 50 then return 14
+    elseif dist < 80 then return 12
+    elseif dist < 120 then return 10
+    else return 8 end
+end
+
+local function removePlayerESPEffect(plr)
+    local e = playerESPEffects[plr]
+    if e then
+        if e.highlight then pcall(function() e.highlight:Destroy() end) end
+        if e.tag then pcall(function() e.tag:Destroy() end) end
+        playerESPEffects[plr] = nil
+    end
+end
+
+local function buildPlayerESPEffect(plr, pChar, pRoot, killer)
+    local color = killer and KILLER_COLOR or SURVIVOR_COLOR
+    local hl = Instance.new("Highlight")
+    hl.FillColor = color
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = color
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = pChar
+    hl.Parent = getPlayerESPHolder()
+
+    local tag, label = nil, nil
+    local holder = getPlayerESPTagHolder()
+    if holder then
+        tag = Instance.new("BillboardGui")
+        tag.Size = UDim2.new(0, 200, 0, 50)
+        tag.StudsOffset = v3new(0, 5.5, 0)
+        tag.AlwaysOnTop = true
+        tag.Adornee = pRoot
+        tag.Parent = holder
+        label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0, 200, 0, 50)
+        label.BackgroundTransparency = 1
+        label.Text = ""
+        label.TextColor3 = color
+        label.TextTransparency = 0.15
+        label.RichText = true
+        label.TextWrap = true
+        label.TextWrapped = true
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 14
+        label.TextStrokeTransparency = 0.3
+        label.TextStrokeColor3 = c3rgb(0, 0, 0)
+        label.Parent = tag
+    end
+    return { highlight = hl, tag = tag, label = label, isKiller = killer, character = pChar, root = pRoot }
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.15)
+        local char = LocalPlayer.Character
+        local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+        local myPos = myRoot and myRoot.Position
+
+        for plr in pairs(playerESPEffects) do
+            if not plr or not plr.Parent or not Players:FindFirstChild(plr.Name) then
+                removePlayerESPEffect(plr)
+            end
+        end
+
+        for _, plr in ipairs(Players:GetPlayers()) do
+            pcall(function()
+                if plr == LocalPlayer then
+                    removePlayerESPEffect(plr)
+                    return
+                end
+
+                local pChar = plr.Character
+                local pRoot = pChar and pChar:FindFirstChild("HumanoidRootPart")
+                local pHum = pChar and pChar:FindFirstChildOfClass("Humanoid")
+
+                if not pChar or not pRoot or not pHum or pHum.Health <= 0 then
+                    removePlayerESPEffect(plr)
+                    return
+                end
+
+                local killer = playerESPIsKiller(plr)
+                local want
+                if killer then
+                    want = PlayerESPSettings.KillerHighlight or PlayerESPSettings.KillerName
+                        or PlayerESPSettings.KillerDistance or PlayerESPSettings.KillerSelected
+                else
+                    want = PlayerESPSettings.SurvivorHighlight or PlayerESPSettings.SurvivorName
+                        or PlayerESPSettings.SurvivorDistance or PlayerESPSettings.SurvivorHealth
+                        or PlayerESPSettings.SurvivorHooks
+                end
+
+                if not want then
+                    removePlayerESPEffect(plr)
+                    return
+                end
+
+                local e = playerESPEffects[plr]
+                if e and (e.character ~= pChar or e.isKiller ~= killer or not e.highlight or not e.highlight.Parent) then
+                    removePlayerESPEffect(plr)
+                    e = nil
+                end
+
+                if not e then
+                    e = buildPlayerESPEffect(plr, pChar, pRoot, killer)
+                    playerESPEffects[plr] = e
+                end
+
+                local color = killer and KILLER_COLOR or SURVIVOR_COLOR
+
+                if e.highlight then
+                    e.highlight.Adornee = pChar
+                    e.highlight.FillColor = color
+                    e.highlight.OutlineColor = color
+                    local show = killer and PlayerESPSettings.KillerHighlight or PlayerESPSettings.SurvivorHighlight
+                    e.highlight.FillTransparency = show and 0.5 or 1
+                    e.highlight.OutlineTransparency = show and 0 or 1
+                end
+
+                if e.tag then e.tag.Adornee = pRoot end
+
+                if e.label and myPos then
+                    local dist = (pRoot.Position - myPos).Magnitude
+                    local parts = {}
+                    if killer then
+                        if PlayerESPSettings.KillerName then parts[#parts + 1] = plr.DisplayName or plr.Name end
+                        if PlayerESPSettings.KillerSelected then
+                            local sel = playerESPGetSelectedKiller(plr)
+                            if sel ~= "无" and sel ~= "None" and sel ~= "" then
+                                parts[#parts + 1] = "杀手: " .. sel
+                            end
+                        end
+                        if PlayerESPSettings.KillerDistance then parts[#parts + 1] = "[" .. mathFloor(dist) .. "米]" end
+                    else
+                        if PlayerESPSettings.SurvivorName then parts[#parts + 1] = plr.DisplayName or plr.Name end
+                        if PlayerESPSettings.SurvivorHealth then parts[#parts + 1] = "状态: " .. playerESPGetHealthState(plr) end
+                        if PlayerESPSettings.SurvivorHooks then
+                            local hk = playerESPGetHookCount(plr)
+                            if hk > 0 then parts[#parts + 1] = "挂钩: " .. hk end
+                        end
+                        if PlayerESPSettings.SurvivorDistance then parts[#parts + 1] = "[" .. mathFloor(dist) .. "米]" end
+                    end
+                    local text = table.concat(parts, "  ")
+                    if e.label.Text ~= text then e.label.Text = text end
+                    if e.label.TextColor3 ~= color then e.label.TextColor3 = color end
+                    local newSize = getPlayerESPTextSize(dist)
+                    if e.label.TextSize ~= newSize then e.label.TextSize = newSize end
+                end
+            end)
+        end
+    end
+end)
+
+local KillerESPGroup = Tabs.ESP:AddGroupbox({
+    Side = "Right", Name = "杀手", IconName = "user-x", Description = "杀手透视",
+})
+
+KillerESPGroup:AddToggle('PlayerESPKillerHighlight', {
+    Text = '开启高亮',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.KillerHighlight = v end,
+})
+
+KillerESPGroup:AddToggle('PlayerESPKillerName', {
+    Text = '显示名字',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.KillerName = v end,
+})
+
+KillerESPGroup:AddToggle('PlayerESPKillerDistance', {
+    Text = '显示距离',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.KillerDistance = v end,
+})
+
+KillerESPGroup:AddToggle('PlayerESPKillerSelected', {
+    Text = '显示所选杀手',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.KillerSelected = v end,
+})
+
+local SurvivorESPGroup = Tabs.ESP:AddGroupbox({
+    Side = "Right", Name = "幸存者", IconName = "users", Description = "幸存者透视",
+})
+
+SurvivorESPGroup:AddToggle('PlayerESPSurvivorHighlight', {
+    Text = '开启高亮',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.SurvivorHighlight = v end,
+})
+
+SurvivorESPGroup:AddToggle('PlayerESPSurvivorName', {
+    Text = '显示名字',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.SurvivorName = v end,
+})
+
+SurvivorESPGroup:AddToggle('PlayerESPSurvivorDistance', {
+    Text = '显示距离',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.SurvivorDistance = v end,
+})
+
+SurvivorESPGroup:AddToggle('PlayerESPSurvivorHealth', {
+    Text = '显示状态',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.SurvivorHealth = v end,
+})
+
+SurvivorESPGroup:AddToggle('PlayerESPSurvivorHooks', {
+    Text = '显示挂钩数',
+    Default = false,
+    Callback = function(v) PlayerESPSettings.SurvivorHooks = v end,
+})
+
+Library:OnUnload(function()
+    for plr in pairs(playerESPEffects) do removePlayerESPEffect(plr) end
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local h = pg and pg:FindFirstChild("HongXingPlayerESPTags")
+        if h then h:Destroy() end
+    end)
+end)
+
+local MenuGroup = Tabs.Settings:AddGroupbox({ Side = "Left", Name = "菜单" })
+
+MenuGroup:AddDropdown('InterfaceLanguage', {
+    Text = '语言 / Language', Values = { '中文', 'English' }, Default = 1,
+    Callback = function(value) if SetInterfaceLanguage then SetInterfaceLanguage(value) end end,
+})
+
+Options.InterfaceLanguage:OnChanged(function()
+    if SetInterfaceLanguage then SetInterfaceLanguage(Options.InterfaceLanguage.Value) end
+end)
+
+do
+    local CompactModeToggle = MenuGroup:AddToggle('CompactMode', {
+        Text = '紧凑侧边栏 / Compact Sidebar', Default = false,
+        Callback = function(value) pcall(function() Window:SetCompact(value) end) end,
+    }) or Toggles.CompactMode
+    if CompactModeToggle then
+        CompactModeToggle:OnChanged(function()
+            pcall(function() Window:SetCompact(CompactModeToggle.Value) end)
+        end)
+    end
+end
+
+MenuGroup:AddLabel('菜单快捷键'):AddKeyPicker('MenuKeybind', {
+    Default = 'RightShift', NoUI = true, Text = 'Menu keybind'
+})
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+MenuGroup:AddButton('卸载脚本', function()
+    pcall(function()
+        if Toggles then
+            for _, toggle in Toggles do
+                if toggle and toggle.Value == true and toggle.SetValue then
+                    pcall(function() toggle:SetValue(false) end)
+                end
+            end
+        end
+    end)
+    Library:Unload()
+end)
+
+pcall(function()
+    local BackgroundGroup = Tabs.Settings:AddGroupbox({ Side = "Left", Name = "背景图设置" })
+    BackgroundGroup:AddDropdown('BackgroundImageDropdown', {
+        Text = '选择背景图片', Values = { "图1", "图2", "无背景" }, Default = 1,
+        Multi = false, Searchable = false,
+        Callback = function(Value)
+            Value = GetOriginalChineseText(Value)
+            local url
+            if Value == "图1" then
+                url = "https://chaton-images.s3.us-east-2.amazonaws.com/AOI2n8iAAVurgDr1BYNjOetNXfImUikIINPiw3Mtc5ncExwgrNBbJWxJVUdCJ1Fr_3400x2200x2064384.jpeg"
+            elseif Value == "图2" then
+                url = "https://chaton-images.s3.us-east-2.amazonaws.com/YvudrmtpgyXGDtruTUdjSczuhDWoBLhnMVgW8n6aDP2hdQwYPHQNzOoc7bQqkvFI_1826x1200x657016.jpeg"
+            end
+            if url and url ~= "" then
+                pcall(function() Window:SetBackgroundImage(url) end)
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local CURSOR_IMAGE = "rbxassetid://11780968239"
+    local cursorGui = nil
+    local cursorConn = nil
+    local cursorEnabled = true
+
+    local function buildCustomCursor()
+        if cursorConn then pcall(function() cursorConn:Disconnect() end) cursorConn = nil end
+        if cursorGui then pcall(function() cursorGui:Destroy() end) cursorGui = nil end
+        pcall(function() UserInputService.MouseIconEnabled = true end)
+        if not cursorEnabled then return end
+        local sg = Instance.new('ScreenGui')
+        sg.Name = 'HongXingCustomCursor'
+        sg.DisplayOrder = 99999
+        sg.IgnoreGuiInset = true
+        sg.ResetOnSpawn = false
+        local parented = false
+        pcall(function() if gethui then sg.Parent = gethui() parented = true end end)
+        if not parented then
+            pcall(function() sg.Parent = game:GetService("CoreGui") parented = true end)
+        end
+        if not parented then sg.Parent = LocalPlayer:WaitForChild('PlayerGui') end
+        cursorGui = sg
+        local il = Instance.new('ImageLabel')
+        il.Name = 'CursorImage'
+        il.BackgroundTransparency = 1
+        il.Image = CURSOR_IMAGE
+        il.Size = UDim2.new(0, 35, 0, 35)
+        il.AnchorPoint = Vector2.new(0.5, 0.5)
+        il.Parent = sg
+        pcall(function() UserInputService.MouseIconEnabled = false end)
+        cursorConn = RunService.RenderStepped:Connect(function()
+            if not cursorGui then return end
+            pcall(function()
+                UserInputService.MouseIconEnabled = false
+                local m = UserInputService:GetMouseLocation()
+                local i = cursorGui:FindFirstChild('CursorImage')
+                if i then i.Position = UDim2.new(0, m.X, 0, m.Y) end
+            end)
+        end)
+    end
+
+    MenuGroup:AddToggle('CustomCursorToggle', {
+        Text = '启用光标', Default = true,
+        Callback = function(v) cursorEnabled = v buildCustomCursor() end,
+    })
+
+    buildCustomCursor()
+end)
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+ThemeManager:SetFolder("MyScriptTheme")
+SaveManager:SetFolder("MyScriptConfig")
+pcall(function()
+    ThemeManager:SetDefaultTheme({
+        FontColor = "ffffff", MainColor = "18181d", AccentColor = "e1e1e8",
+        BackgroundColor = "0b0b0e", OutlineColor = "2a2a32",
+        BackgroundImage = "", FontFace = "RobotoMono",
+    })
+end)
+SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+Library.CornerRadius = 10
+if Options.FontFace then Options.FontFace:SetValue("RobotoMono") end
+Library:UpdateColorsUsingRegistry()
+
+function L.fixInputColors(root)
+    root = root or (Library and Library.ScreenGui)
+    if not root then return end
+    local scheme = Library.Scheme
+    local field = scheme.MainColor:Lerp(Color3.new(1, 1, 1), 0.18)
+    local font = scheme.FontColor
+    local function paint(inst)
+        if inst:IsA("TextBox") then
+            inst.BackgroundColor3 = field
+            inst.BackgroundTransparency = 0
+            inst.TextColor3 = font
+            pcall(function() inst.PlaceholderColor3 = font:Lerp(field, 0.45) end)
+        elseif (inst:IsA("Frame") or inst:IsA("TextButton"))
+            and inst.Name:lower():find("dropdown", 1, true) then
+            inst.BackgroundColor3 = field
+            inst.BackgroundTransparency = 0
+            if inst:IsA("TextButton") then inst.TextColor3 = font end
+            for _, child in inst:GetDescendants() do
+                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                    child.TextColor3 = font
+                end
+            end
+        end
+    end
+    for _, inst in root:GetDescendants() do pcall(paint, inst) end
+end
+
+task.defer(function()
+    L.fixInputColors()
+    if Library.ScreenGui then
+        Library.ScreenGui.DescendantAdded:Connect(function(inst)
+            task.defer(function() L.fixInputColors(inst) end)
+        end)
+    end
+    local token = 0
+    local function recolorSoon()
+        token = token + 1
+        local mine = token
+        task.delay(0.4, function() if mine == token then L.fixInputColors() end end)
+    end
+    for _, key in { "MainColor", "BackgroundColor", "FontColor" } do
+        if Options[key] and Options[key].OnChanged then
+            Options[key]:OnChanged(recolorSoon)
+        end
+    end
+end)
+
+task.defer(function()
+    if L.bootLanguagePicked then
+        Options.InterfaceLanguage:SetValue(L.bootLanguage)
+    else
+        if SetInterfaceLanguage then SetInterfaceLanguage(Options.InterfaceLanguage.Value) end
+    end
+end)
+
+do
+    Players = cloneref(game:GetService("Players"))
+    LocalPlayer = Players.LocalPlayer
+
+    function playIdentityAnimation()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if not animator then animator = Instance.new("Animator") animator.Parent = humanoid end
+        local anim = Instance.new("Animation")
+        local ok, err = pcall(function() anim.AnimationId = "rbxassetid://507766666" end)
+        if not ok then warn("playIdentityAnimation: failed:", err) return end
+        local track = animator:LoadAnimation(anim)
+        track.Looped = true
+        track:Play()
+        track:AdjustSpeed(1)
+        L._identityTrack = track
+    end
+
+    local function onCharacterAdded()
+        task.wait(0.5)
+        playIdentityAnimation()
+    end
+
+    L.onCharacterAdded(onCharacterAdded)
+    if LocalPlayer.Character then onCharacterAdded() end
+end
+
+do
+    L._themeWatchConns = L._themeWatchConns or {}
+    Library:UpdateColorsUsingRegistry()
+
+    local OUTLINE = Library.Scheme.OutlineColor
+    local MAIN    = Library.Scheme.MainColor
+    local BG      = Library.Scheme.BackgroundColor
+
+    local BORDER_GLOW = Color3.fromRGB(
+        math.min(255, OUTLINE.R * 255 + 30),
+        math.min(255, OUTLINE.G * 255 + 30),
+        math.min(255, OUTLINE.B * 255 + 45)
+    )
+    local HOVER_BG = Color3.fromRGB(
+        math.min(255, MAIN.R * 255 + 12),
+        math.min(255, MAIN.G * 255 + 12),
+        math.min(255, MAIN.B * 255 + 18)
+    )
+
+    local function ensure(cls, parent)
+        local e = parent:FindFirstChildOfClass(cls)
+        if not e then e = Instance.new(cls) e.Parent = parent end
+        return e
+    end
+    local function setGradient(inst, c1, c2, rot)
+        local g = ensure("UIGradient", inst)
+        g.Color = ColorSequence.new(c1, c2)
+        g.Rotation = rot or 90
+    end
+    local function setStroke(inst, color, thickness, transparency)
+        local s = ensure("UIStroke", inst)
+        s.Color = color
+        s.Thickness = thickness or 1
+        s.Transparency = transparency or 0
+        s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        return s
+    end
+    local function setCorner(inst, radius)
+        local c = ensure("UICorner", inst)
+        c.CornerRadius = UDim.new(0, radius)
+        return c
+    end
+
+    local function beautify(inst)
+        if not inst.Parent then return end
+        if inst:IsA("TextButton") and inst.Size.X.Scale == 1
+            and inst.Size.Y.Offset >= 34 and inst.Size.Y.Offset <= 44 then
+            if not inst:GetAttribute("HongXing_Tab") then
+                inst:SetAttribute("HongXing_Tab", true)
+                setStroke(inst, BORDER_GLOW, 1, 0.55)
+                setGradient(inst, MAIN, Color3.fromRGB(
+                    math.min(255, MAIN.R * 255 + 8),
+                    math.min(255, MAIN.G * 255 + 8),
+                    math.min(255, MAIN.B * 255 + 14)
+                ), 90)
+            end
+            return
+        end
+        if (inst:IsA("TextButton") or inst:IsA("TextBox"))
+            and inst.Size.Y.Offset >= 18 and inst.Size.Y.Offset <= 25
+            and inst.BackgroundTransparency < 1
+            and inst.BackgroundColor3 ~= Color3.new(1, 1, 1) then
+            if not inst:GetAttribute("HongXing_Ctrl") then
+                inst:SetAttribute("HongXing_Ctrl", true)
+                setCorner(inst, 6)
+                setStroke(inst, OUTLINE, 1, 0.1)
+                if inst.BackgroundColor3 == MAIN or inst.BackgroundColor3 == BG then
+                    setGradient(inst, inst.BackgroundColor3, Color3.fromRGB(
+                        math.min(255, inst.BackgroundColor3.R * 255 + 10),
+                        math.min(255, inst.BackgroundColor3.G * 255 + 10),
+                        math.min(255, inst.BackgroundColor3.B * 255 + 16)
+                    ), 90)
+                end
+                local baseColor = inst.BackgroundColor3
+                inst.MouseEnter:Connect(function()
+                    if inst:GetAttribute("HongXing_Dis") then return end
+                    TweenService:Create(inst, TweenInfo.new(0.15), { BackgroundColor3 = HOVER_BG }):Play()
+                end)
+                inst.MouseLeave:Connect(function()
+                    if inst:GetAttribute("HongXing_Dis") then return end
+                    TweenService:Create(inst, TweenInfo.new(0.15), { BackgroundColor3 = baseColor }):Play()
+                end)
+            end
+            return
+        end
+        if inst:IsA("Frame") and inst.BackgroundTransparency == 0 then
+            local corner = inst:FindFirstChildOfClass("UICorner")
+            if corner and inst:FindFirstChildOfClass("UIStroke") then
+                if not inst:GetAttribute("HongXing_Box") then
+                    inst:SetAttribute("HongXing_Box", true)
+                    local s = inst:FindFirstChildOfClass("UIStroke")
+                    if s then s.Color = BORDER_GLOW s.Transparency = 0.55 s.Thickness = 1 end
+                end
+            end
+        end
+    end
+
+    task.defer(function()
+        local sg = Library.ScreenGui
+        if not sg then return end
+        for _, inst in sg:GetDescendants() do pcall(beautify, inst) end
+        table.insert(L._themeWatchConns, sg.DescendantAdded:Connect(function(inst)
+            task.defer(function() pcall(beautify, inst) end)
+        end))
+    end)
+end
+
+do
+    local function forceOpaque(inst)
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+            if inst.TextTransparency ~= 0 then inst.TextTransparency = 0 end
+        end
+    end
+    task.defer(function()
+        local sg = Library.ScreenGui
+        if not sg then return end
+        for _, inst in sg:GetDescendants() do forceOpaque(inst) end
+        table.insert(L._themeWatchConns, sg.DescendantAdded:Connect(function(inst)
+            if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+                task.defer(function() inst.TextTransparency = 0 end)
+            end
+        end))
+        local lastTick = 0
+        table.insert(L._themeWatchConns, RunService.Heartbeat:Connect(function()
+            local now = osClock()
+            if now - lastTick < 0.15 then return end
+            lastTick = now
+            for _, inst in sg:GetDescendants() do forceOpaque(inst) end
+        end))
+    end)
+end
+
+do
+    local function findTitleLabel()
+        local mf = Library.Window and Library.Window.MainFrame
+        if not mf then return nil end
+        for _, d in mf:GetDescendants() do
+            if d:IsA("TextLabel") and d.Text
+               and (d.Text == "红星hx中心 v1.0" or d.Text:find("红星hx中心")) then
+                return d
+            end
+        end
+        return nil
+    end
+    task.spawn(function()
+        local label
+        repeat label = findTitleLabel() if not label then task.wait(0.2) end until label
+        label.FontFace = Font.fromEnum(Enum.Font.SciFi)
+        label.TextSize = 22
+        local grad = label:FindFirstChildOfClass("UIGradient")
+        if not grad then grad = Instance.new("UIGradient") grad.Parent = label end
+        grad.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(120, 220, 255)),
+            ColorSequenceKeypoint.new(0.25, Color3.fromRGB(200, 245, 255)),
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.75, Color3.fromRGB(140, 220, 255)),
+            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(120, 220, 255)),
+        }
+        grad.Rotation = 0
+        label.TextStrokeColor3 = Color3.fromRGB(30, 120, 200)
+        label.TextStrokeTransparency = 0.3
+        local t0 = osClock()
+        while label and label.Parent do
+            grad.Rotation = (osClock() - t0) * 60 % 360
+            RunService.RenderStepped:Wait()
+        end
+    end)
+end
+
+do
+    local ICON_SIZE = 36
+    local ICON_PADDING = 56
+    local ICON_OFFSET = -44
+    local watermark = Library:AddDraggableLabel({
+        Text = "红星hx中心 v1.0", Icon = HongXingLogo, IconPosition = "left",
+    })
+    L.watermark = watermark
+    task.defer(function()
+        local label = watermark.Label
+        if not label then return end
+        local iconImg = label:FindFirstChildOfClass("ImageLabel")
+        if iconImg then
+            iconImg.Size = UDim2.fromOffset(ICON_SIZE, ICON_SIZE)
+            iconImg.Position = UDim2.new(0, ICON_OFFSET, 0.5, 0)
+        end
+        local padding = label:FindFirstChildOfClass("UIPadding")
+        if padding then padding.PaddingLeft = UDim.new(0, ICON_PADDING) end
+    end)
+    Library:OnUnload(function()
+        if L.watermark and L.watermark.Destroy then
+            pcall(function() L.watermark:Destroy() end)
+            L.watermark = nil
+        end
+    end)
+end
+
+Library:OnUnload(function()
+    getgenv().HongXingLoaded = nil
+    getgenv().HongXingInstance = nil
+    if getgenv().HongXingSetUnloading then pcall(getgenv().HongXingSetUnloading) end
+
+    pcall(function()
+        ParrySettings.Enabled = false
+        if parryRangeCircle then
+            pcall(function() parryRangeCircle:Destroy() end)
+            parryRangeCircle = nil
+        end
+    end)
+
+    pcall(function()
+        Repair.Enabled = false
+        stopRepair()
+        stopPerfectSkillCheck()
+    end)
+
+    pcall(function()
+        for obj in pairs(espEffects) do removeESPEffects(obj) end
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local h = pg and pg:FindFirstChild("HongXingMapESPTags")
+        if h then h:Destroy() end
+    end)
+
+    local function safeDisconnect(conn)
+        if conn and typeof(conn) == "RBXScriptConnection" and conn.Connected then
+            conn:Disconnect()
+        end
+    end
+
+    pcall(function()
+        if L._homeClockThread then
+            task.cancel(L._homeClockThread)
+            L._homeClockThread = nil
+        end
+    end)
+
+    if L._themeWatchConns then
+        for _, c in L._themeWatchConns do safeDisconnect(c) end
+        L._themeWatchConns = {}
+    end
+
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local h = pg and pg:FindFirstChild("HongXingCustomCursor")
+        if h then h:Destroy() end
+    end)
+end)
